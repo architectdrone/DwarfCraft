@@ -144,7 +144,7 @@ def populate(world, region, block, fill_cube_size = 32, min_width = 2, max_width
                 start = (random.randrange(x_lo, x_hi), random.randrange(y_lo, y_hi), random.randrange(z_lo, z_hi))
                 min_width_specific = random.randrange(min_width,max_width)
                 max_width_specific = random.randrange(min_width_specific, max_width)
-                print(f"({x_i}, {y_i}, {z_i}) MAKING A CAVE AT {start}. WIDTH: {min_width_specific}-{max_width_specific}. MAX_LENGTH: {iterations}")
+                #print(f"({x_i}, {y_i}, {z_i}) MAKING A CAVE AT {start}. WIDTH: {min_width_specific}-{max_width_specific}. MAX_LENGTH: {iterations}")
                 make_cave(world,region,start,iterations, min_width_specific, max_width_specific, block)
 
 if __name__ == "__main__":
