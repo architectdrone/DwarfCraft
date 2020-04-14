@@ -6,23 +6,10 @@ from amulet.api.selection import *
 from amulet.api.world import *
 from amulet.api.block import *
 from amulet.operations import fill
+from util import *
 import math
 import asyncio
 import time
-
-def get_single_block(x,y,z):
-    lo = (x,y,z)
-    hi = (x+1,y+1,z+1)
-    return SubSelectionBox(lo, hi)
-
-def get_positions_in_sub_box(sub_box):
-    for x_i in range(sub_box.max_x - sub_box.min_x):
-        for y_i in range(sub_box.max_y - sub_box.min_y):
-            for z_i in range(sub_box.max_z - sub_box.min_z):
-                x = sub_box.min_x+x_i
-                y = sub_box.min_y+y_i
-                z = sub_box.min_z+z_i
-                yield x, y, z
 
 def is_block(world, x, y, z, block):
     if y > 255:
@@ -33,10 +20,6 @@ def is_block(world, x, y, z, block):
         current_block = world.get_block(x, y, z)
         result = current_block == block
         return result
-
-def get_id(world, x, y, z):
-    for chunk, slices, _ in world.get_chunk_slices(get_single_block(x, y, z), 0, True):
-        return chunk.blocks[slices].max()
 
 # def get_blocks_in_area(world, area):
 #     blocks = []
