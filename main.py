@@ -39,7 +39,9 @@ def distance_to_probability(distance):
     '''
     Converts a distance, from 0.5, to the probability that a value would land in the area between 0.5-distance and 0.5+distance in 3D Perlin Noise.
     Based on a linear interpolation of data collected from running 100 tests with different seeds. Valid only if octaves = 1.
+    (Deprecated)
     '''
+    print("(DISTANCE TO PROBABILITY)THIS IS DEPRECATED. IF YOU NEED TO USE IT, PLEASE REDO CALCULATIONS.")
     if distance < 0.12:
         return 5.82*distance+0.0148
     else:
@@ -50,12 +52,12 @@ def probability_to_distance(probability):
     Converts a probability to a distance from 0.5 such that the probability that a value will land in the distance is roughly the input probability.
     '''
     if probability < 0.75:
-        return 0.174*probability-0.000307
+        return 0.177*probability-0.000254
     else:
-        return 0.0114*math.exp(3.5*probability)
+        return 0.0127*math.exp(3.39*probability)
 
-def perlin_probability(percent_chance, x, y, z):
-    distance = abs(perlin(x, y, z, octaves=1)-0.5)
+def perlin_probability(percent_chance, x, y, z, seed = SEED):
+    distance = abs(perlin(x, y, z, octaves=1, base = seed)-0.5)
     success_distance = clamp(probability_to_distance(percent_chance), 0, 1)
     return distance < success_distance
 
@@ -63,7 +65,7 @@ def perlin(x, y, z, octaves = 1, base = 1, size=SQUARE_MAX):
     '''
     Returns a normalized (0 - 1) value. The 0.2746 term pushes the average to around 0.5.
     '''
-    return clamp(((pnoise3(x/size, y/size, z/size, octaves = octaves, base = base)+1)/2)+0.2746, 0, 0.999)
+    return clamp(((pnoise3(x/size, y/size, z/size, octaves = octaves, base = base)+1)/2)+0.0535, 0, 0.999)
 
 def perlin_choice(x, y, z, list):
     perlin_result = perlin(x, y, z)
