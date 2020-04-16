@@ -1,6 +1,6 @@
 from caves import populate
 from edges import get_edges, is_ceiling, is_floor, is_wall, get_single_block
-from util import place_single_block, line_y, clamp
+from util import place_single_block, line_y, clamp, get_positions_in_sub_box, map
 from amulet.api.world import *
 from amulet.api.selection import *
 from amulet.api.block import *
@@ -19,6 +19,9 @@ GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. A
 GLOWSTONE_CLUSTER_COMPRESSION = 0.25 #Percent of ceilings in a glowstone cluster that have a stalagtite on them.
 GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
 
+LAVA_POOL_SPAWN_CHANCE = 0.20 #Spawn chance for lava pools in the threshold
+LAVA_POOL_FAST = False #Use the fast method of generating lava pools. This does not fill the area.
+
 min = (0, 0, 0)
 max = (SQUARE_MAX, SQUARE_MAX, SQUARE_MAX)
 
@@ -29,7 +32,9 @@ stone = blockstate_to_block("universal_minecraft:stone")
 dirt = blockstate_to_block("universal_minecraft:dirt")
 podzol = blockstate_to_block("universal_minecraft:podzol")
 cobblestone = blockstate_to_block("universal_minecraft:cobblestone")
+lava = blockstate_to_block("universal_minecraft:lava")
 
+#Various Noise Functions
 def deterministic_random(x, y, z):
     seed_value = (SEED**2)*x + (SEED)*y + z
     random.seed(seed_value)
@@ -72,6 +77,15 @@ def perlin_choice(x, y, z, list):
     index = math.floor(perlin_result*(len(list)))
     return list[index]
 
+#Field Declaration
+def hazard_field(x, y, z):
+    '''
+    Degree of danger, between 0.0 (safe) and 1.0 (dangerous). 0.5 is the average.
+    '''
+    hazard_seed = SEED+666 #HELL YEAH
+    return perlin(x, y, z, base=hazard_seed)
+
+#Cave Decoration
 def grow_stalagtite(world, x, y, z, block, height):
     '''
     Places a stalagtite. Note that this implementation is fast, but not perfect. 
@@ -91,16 +105,60 @@ def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression,
     Takes care of placing stalagtite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
     '''
     global air
+    to_return = 0
     if is_ceiling(world, x, y, z, air):
         if perlin_probability(GLOWSTONE_CLUSTER_SPAWN_CHANCE, x, y, z):
             length = random.randint(1, GLOWSTONE_CLUSTER_MAX_LENGTH)
+            to_return = 1
             if random.random() < GLOWSTONE_CLUSTER_COMPRESSION:
                 grow_stalagtite(world, x, y-1, z, block, length)
+    return to_return
+
+def handle_lava_pools(world, x, y, z, fast = False):
+    floor = is_floor(world, x, y, z)
+    #correct_hazard_level = hazard_field(x, y, z) > LAVA_POOL_HAZARD_THRESHOLD
+    scaling_factor = (2/(map(y,0,SQUARE_MAX,0,1)+1))-1 #We want to punish the spawn chance at high altitudes. This equation does exactly that.
+    spawn = perlin_probability(scaling_factor*LAVA_POOL_SPAWN_CHANCE, x, y, z, seed = SEED*5)
+
+    if floor and spawn:
+        if not fast:
+            place_single_block(world, air, x, y, z)
+            return slow_pool_fill(world, x, y, z, lava)
+        else:
+            place_single_block(world, lava, x, y, z)
+            return 1
+    return 0
+
+def slow_pool_fill(world, x, y, z, block, downwards = False):
+    '''
+    We use a modified flood fill algorithim. This is likely to be slow.
+    Also, there are some silly little bugs, due to preserving stack space.
+    '''
+    #print(f"Looking at {x, y, z}. ", end = "")
+    if (x < 0 or x > SQUARE_MAX) or (y < 0 or y > SQUARE_MAX) or (z < 0 or z > SQUARE_MAX):
+        #print("Outta bounds!")
+        return 0
+    elif world.get_block(x, y, z) == air:
+        #print("That's good!")
+        if downwards:
+            place_single_block(world, block, x, y, z)
+            return slow_pool_fill(world, x, y, z, block, downwards = True)+1
+        else:
+            place_single_block(world, block, x, y, z)
+            total = 1
+            total+=slow_pool_fill(world, x-1, y  , z  , block)
+            total+=slow_pool_fill(world, x+1, y  , z  , block)
+            total+=slow_pool_fill(world, x  , y-1, z  , block, downwards = True)
+            total+=slow_pool_fill(world, x  , y  , z-1, block)
+            total+=slow_pool_fill(world, x  , y  , z+1, block)
+            return total
+    else:
+        #print("Not Air, no can do!")
+        return 0
 
 if __name__ == "__main__":
-
     program_start = time.time()
-    
+
     subbox = SubSelectionBox(min, max)
     target_area = Selection([subbox])
 
@@ -120,15 +178,22 @@ if __name__ == "__main__":
     print(f"DONE in {time.time()-start}s")
 
     start = time.time()
+    stalagtites = 0
+    lava_pools = 0
+    floors = 0
+    ceilings = 0
     print("DECORATING CAVES...")
     for x, y, z in get_edges(world, subbox):
-        handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
-        if is_floor(world, x, y, z):
-            block = perlin_choice(x, y, z, [podzol, dirt, stone, cobblestone])
-            place_single_block(world, block, x, y, z)
+        stalagtites+=handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
+        lava_pools+=handle_lava_pools(world, x, y, z)
+        if (is_floor(world, x, y, z)):
+            floors+=1
+        if is_ceiling(world, x, y, z):
+            ceilings+=1
         
             
-    print(f"DONE in {time.time()-start}s.")
+    print(f"DONE in {time.time()-start}s. Placed lava pools on {(lava_pools/floors)*100:.1f}% of floors, and stalagtites on {(stalagtites/ceilings)*100:.1f}% of floors.")
+    print(f"There were {stalagtites} stalagtites on {ceilings} ceilings and {lava_pools} lava pools on {floors} floors.")
 
     print(f"ALL DONE in {time.time()-program_start}")
     world.save()
