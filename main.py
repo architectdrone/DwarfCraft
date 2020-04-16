@@ -15,12 +15,14 @@ SQUARE_MAX = 64
 PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC"
 SEED = random.randint(0, 1000)
 
+GLOWSTONE_CLUSTERS = True #Whether glowstone clusters spawn
 GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.
 GLOWSTONE_CLUSTER_COMPRESSION = 0.25 #Percent of ceilings in a glowstone cluster that have a stalagtite on them.
 GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
 
+LAVA_POOLS = True
 LAVA_POOL_SPAWN_CHANCE = 0.20 #Spawn chance for lava pools in the threshold
-LAVA_POOL_FAST = False #Use the fast method of generating lava pools. This does not fill the area.
+LAVA_POOL_FAST = False #Use the fast method of generating lava pools. This does not fill the area. This saved me about 0.5 seconds on my 64x64x64 benchmark
 
 min = (0, 0, 0)
 max = (SQUARE_MAX, SQUARE_MAX, SQUARE_MAX)
@@ -178,22 +180,14 @@ if __name__ == "__main__":
     print(f"DONE in {time.time()-start}s")
 
     start = time.time()
-    stalagtites = 0
-    lava_pools = 0
-    floors = 0
-    ceilings = 0
     print("DECORATING CAVES...")
     for x, y, z in get_edges(world, subbox):
-        stalagtites+=handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
-        lava_pools+=handle_lava_pools(world, x, y, z)
-        if (is_floor(world, x, y, z)):
-            floors+=1
-        if is_ceiling(world, x, y, z):
-            ceilings+=1
-        
-            
-    print(f"DONE in {time.time()-start}s. Placed lava pools on {(lava_pools/floors)*100:.1f}% of floors, and stalagtites on {(stalagtites/ceilings)*100:.1f}% of floors.")
-    print(f"There were {stalagtites} stalagtites on {ceilings} ceilings and {lava_pools} lava pools on {floors} floors.")
+        if GLOWSTONE_CLUSTERS:
+            stalagtites+=handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
+        if LAVA_POOLS:
+            lava_pools+=handle_lava_pools(world, x, y, z, fast = LAVA_POOL_FAST)
+    
+    print(f"DONE in {time.time()-start}s.")
 
     print(f"ALL DONE in {time.time()-program_start}")
     world.save()
