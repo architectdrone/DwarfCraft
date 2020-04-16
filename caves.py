@@ -71,7 +71,7 @@ def make_cave(world, region, start, iterations, min_width, max_width, block):
         MAX_Z = i.max_z
 
     position = start
-    vector = (1, 0, 0)
+    vector = (0, 0, 0)
     width = int(min_width+((max_width-min_width)/2))
     for i in range(iterations):
         px = random.choice([-1, 0, 1]) #pnoise1(i/1000, octaves = 3)
