@@ -6,6 +6,8 @@ from amulet.api.selection import *
 from amulet.api.world import *
 from amulet.api.block import *
 from amulet.operations import fill
+from amulet.api.chunk import Chunk
+from amulet.api.errors import ChunkDoesNotExist
 from util import *
 import math
 import asyncio
@@ -64,7 +66,14 @@ def get_edges(world, region, ambient_block = air):
     '''
 
     for x, y, z in get_positions_in_sub_box(region):
-        edge = is_edge(world, x, y, z, ambient_block)
+        try:
+            edge = is_edge(world, x, y, z, ambient_block)
+        except ChunkDoesNotExist:
+            c_x = math.floor(x/16)
+            c_z = math.floor(z/16)
+            chunk = Chunk(c_x, c_z)
+            world.put_chunk(chunk, 0)
+            edge = is_edge(world, x, y, z, ambient_block)
         if edge:
             yield (x, y, z)    
 
