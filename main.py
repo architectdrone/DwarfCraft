@@ -1,21 +1,22 @@
 from caves import populate
 from edges import get_edges, is_ceiling, is_floor, is_wall, get_single_block
-from util import place_single_block, line_y, clamp, get_positions_in_sub_box, map
+from util import place_single_block, line_y, clamp, get_positions_in_sub_box, map, get_block_wrapper
 from amulet.api.world import *
 from amulet.api.selection import *
 from amulet.api.block import *
 from amulet.operations import fill
 from amulet import world_interface
+from amulet.api.errors import ChunkDoesNotExist
 from noise import pnoise3
 import math
 import random
 import time
 
 SQUARE_MAX = 64
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC2"
+PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC4"
 SEED = random.randint(0, 1000)
 
-CAVE_DECO = True #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
+CAVE_DECO = False #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
 
 GLOWSTONE_CLUSTERS = True #Whether glowstone clusters spawn
 GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.
@@ -24,7 +25,12 @@ GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
 
 LAVA_POOLS = True #Whether Lava Pools Spawn
 LAVA_POOL_SPAWN_CHANCE = 0.05 #Spawn chance for lava pools in the threshold
+LAVA_POOL_PUNISHMENT_FACTOR = 4 #Spawn rates are "punished" at higher altitudes. Increase this to increase the punishment factor. Conversely, you can set it 0 to do away with punishments, but, if you have fill mode on, I wouldn't reccomend that.
 LAVA_POOL_FAST = False #Use the "fast" method of generating lava pools. This prevents the dreaded "recursion limit exceeded" error.
+
+#Ore Spawning Numbers
+ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
+ORE_POCKET_SIZE = 5 #Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.
 
 #Ore difficulties. Higher numbers mean they tend to spawn in the deeper parts of the map.
 COAL_DIFF = 0.1
@@ -145,7 +151,7 @@ def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression,
 def handle_lava_pools(world, x, y, z, fast = False):
     floor = is_floor(world, x, y, z)
     #correct_hazard_level = hazard_field(x, y, z) > LAVA_POOL_HAZARD_THRESHOLD
-    scaling_factor = (2/(map(y,0,SQUARE_MAX,0,1)+1))-1 #We want to punish the spawn chance at high altitudes. This equation does exactly that.
+    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**LAVA_POOL_PUNISHMENT_FACTOR #We want to punish the spawn chance at high altitudes. This equation does exactly that.
     spawn = perlin_probability(scaling_factor*LAVA_POOL_SPAWN_CHANCE, x, y, z, seed = SEED*5)
 
     if floor and spawn:
@@ -207,21 +213,25 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
         dn_empty = False
         #print(f"\tPopping {x, y, z} off of the stack.")
         while True:
-            if (world.get_block(x, y, z) != air and not first) or x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > SQUARE_MAX or z < 0:
-                #print(f"\t\t\t Hit a wall.")
+            try:
+                if x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > SQUARE_MAX or z < 0 or (get_block_wrapper(world, x, y, z) != air and not first):
+                    #print(f"\t\t\t Hit a wall.")
+                    break
+            except ChunkDoesNotExist:
+                print(f"{x, y, z} caused an EPIC FAIL!")
                 break
-
-            if not up_empty and world.get_block(x+1, y, z) == air:
+                
+            if not up_empty and get_block_wrapper(world, x+1, y, z) == air:
                 #print(f"\t\t\t Detected an empty spot at {x+1, y, z} (UP)")
                 up_empty = True
                 stack.append((x+1, y, z))
-            elif not dn_empty and world.get_block(x-1, y, z) == air:
+            elif not dn_empty and get_block_wrapper(world,x-1, y, z) == air:
                 #print(f"\t\t\t Detected an empty spot at {x-1, y, z} (DN)")
                 dn_empty = True
                 stack.append((x-1, y, z))
-            elif up_empty and world.get_block(x+1, y, z) != air:
+            elif up_empty and get_block_wrapper(world,x+1, y, z) != air:
                 up_empty = False
-            elif dn_empty and world.get_block(x-1, y, z) != air:
+            elif dn_empty and get_block_wrapper(world,x-1, y, z) != air:
                 dn_empty = False
             
             #print(f"\t\t Filling {x, y, z}.")
@@ -229,7 +239,7 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
             
             alter_y = y-1
             while True:
-                if world.get_block(x, alter_y, z) != air or alter_y < 0:
+                if get_block_wrapper(world,x, alter_y, z) != air or alter_y < 0:
                     break
                 else:
                     place_single_block(world, block, x, alter_y, z)
@@ -243,86 +253,36 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
             else:
                 z+=1
     #print("STACK IS EMPTY.")
-            
-
-
-# def painters_pool_fill(world, sx, sy, sz, block):
-#     '''
-#     An alternative implementation of pool filling. This uses the painter's algorithim to avoid recursion limits. https://en.wikipedia.org/wiki/Flood_fill#Fixed-memory_method_(right-hand_fill_method)
-#     '''
-#     x = sx
-#     y = sy
-#     z = sz
-
-#     mark_exists = False
-#     mark_x = 0
-#     mark_y = 0
-#     mark_z = 0
-#     mark_n = False
-#     mark_s = False
-#     mark_e = False
-#     mark_w = False
-
-#     while True:
-#         place_single_block(world, block, x, y, z)
-#         slow_pool_fill(world, x, y-1, z, block, downwards=True) #We use already implemented functionality.
-
-#         n = world.get_block(x-1, y, z  ) == air
-#         s = world.get_block(x+1, y, z  ) == air
-#         e = world.get_block(x  , y, z+1) == air
-#         w = world.get_block(x  , y, z-1) == air
-#         available_count = n+s+e+w
-
-#         if available_count == 0:
-#             #Stop.
-#             return
-#         elif available_count == 1:
-#             #Go in only available direction.
-#             if n:
-#                 x-=1
-#             elif s:
-#                 x+=1
-#             elif e:
-#                 z+=1
-#             elif w:
-#                 z-=1
-#         elif available_count == 2:
 
 #Misc World Gen
 def get_proper_ore(y):
     #Placeholder
     global ores, SQUARE_MAX
-    diff = 1-map(y, 0, SQUARE_MAX, 0, 1)
-    random_diff = clamp(map(random.random(), 0, 1, -1, 1)+diff, 0, 1)
-    proper_ore = None
-    true_diff = 0
-    best = 100
-    for ore, diff in ores:
-        if abs(diff-random_diff) < best:
-            best = abs(diff-random_diff)
-            proper_ore = ore
-            true_diff = diff
-    size = int(map(clamp(abs(diff-true_diff), 0, 1), 0, 1, 0, 9))
-    return proper_ore, size
+    ore, diff = random.choice(ores)
+    ideal_diff = 1-map(y, 0, SQUARE_MAX, 0, 1)
+    if ideal_diff > diff:
+        size = ORE_POCKET_SIZE*((1+abs(ideal_diff-diff))**2)
+    else:
+        size = ORE_POCKET_SIZE*(1-abs(ideal_diff-diff))
+    return ore, int(size)
     
 def place_ore(world, x, y, z):
     ore, size = get_proper_ore(y)
+    #print(f"Placing {ore} vein on size {size} at {x, y, z}. Y={y} has a diff of {1-map(y, 0, SQUARE_MAX, 0, 1)}")
     if size == 0:
+        #print("\tNothing else to do.")
         return
     elif size == 1:
+        #print("\tWe done here.")
         place_single_block(world, ore, x, y, z)
     else:
-        min = (x, y, z)
-        x_dim = random.randrange(1, size)
-        y_dim = clamp(abs((x_dim-random.randrange(1, size))), 1, 10000)
-        z_dim = clamp(abs((y_dim-random.randrange(1, size))), 1, 10000)
-        max_x = clamp(x+x_dim, 0, SQUARE_MAX)
-        max_y = clamp(y+y_dim, 0, SQUARE_MAX)
-        max_z = clamp(z+z_dim, 0, SQUARE_MAX)
-        max = (max_x, max_y, max_z)
-        #print(f"Placing {ore} at {x, y, z} with dimensions {x_dim, y_dim, z_dim}")
-        fill.fill(world, 0, SubSelectionBox(min, max), {'fill_block': ore})
-
+        for i in range(size):
+            place_x = clamp(x+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
+            place_y = clamp(y+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
+            place_z = clamp(z+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
+            place_single_block(world, ore, place_x, place_y, place_z)
+            #print(f"\tPlacing element #{i} at {place_x, place_y, place_z}")
+        #print("\tDone.")
 
 if __name__ == "__main__":
     program_start = time.time()
@@ -342,7 +302,8 @@ if __name__ == "__main__":
 
     start = time.time()
     print("OREIFICATION...")
-    for i in range(1000):
+    ore_pockets = int(((SQUARE_MAX**3)/(16**3))*ORE_POCKETS_PER_CHUNK)
+    for i in range(ore_pockets):
         x = random.randrange(0, SQUARE_MAX)
         y = random.randrange(0, SQUARE_MAX)
         z = random.randrange(0, SQUARE_MAX)
