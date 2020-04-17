@@ -2,6 +2,8 @@ from amulet.api.selection import *
 #from amulet.api.world import *
 from amulet.api.block import *
 from amulet.operations import fill
+from amulet.api.chunk import Chunk
+from amulet.api.errors import ChunkDoesNotExist
 import math
 import time
 
@@ -32,6 +34,19 @@ def get_single_block(x,y,z):
 
 def place_single_block(world, block, x, y, z):
     fill.fill(world, 0, get_single_block(x, y, z), {'fill_block':block})
+
+def get_block_wrapper(world, x, y, z):
+    '''
+    Wrapper around world.get_block that loads a chunk if the chunk does not exist, eliminating the dreaded "ChunkDoesNotExist" message
+    '''
+    try:
+        return world.get_block(x, y, z)
+    except ChunkDoesNotExist:
+        c_x = math.floor(x/16)
+        c_z = math.floor(z/16)
+        chunk = Chunk(c_x, c_z)
+        world.put_chunk(chunk, 0)
+        return world.get_block(x, y, z)
 
 def line_y(start_x, start_y, start_z, length, up):
     if (up):
