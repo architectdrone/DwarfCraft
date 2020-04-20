@@ -7,12 +7,18 @@ from amulet_nbt import *
 from amulet import world_interface
 from amulet.api.world import *
 
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC5"
+PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC6"
 
 def spawner(world, x, y, z, mob):
     '''
     Creates a spawner at (x, y, z), makes it spawn mob.
     '''
+
+    if type(mob) is str:
+        #Convert to spawndata.
+        spawner(world, x, y, z, {'id': mob})
+        return
+
     place_single_block(world, blockstate_to_block("universal_minecraft:spawner"), x, y, z)
 
     cx = int(x/16)
@@ -36,40 +42,12 @@ def spawner(world, x, y, z, mob):
             'DisplayEntityHeight':1.7999999,
             'DisplayEntityScale':1.0,
             'DisplayEntityWidth':0.8,
-            'EntityIdentifier':mob,
-            'SpawnData': {'id': mob},
-            'SpawnPotentials': [{'Entity': {'id': mob}, 'Weight': 1}]
+            'EntityIdentifier':mob['id'],
+            'SpawnData': mob,
+            'SpawnPotentials': [{'Entity': mob, 'Weight': 1}]
         }
     }
     spawner = BlockEntity("universal_minecraft","spawner",ox,oy,oz, NBTFile(to_nbt(spawner_nbt)))
-
-    # spawner_nbt = NBTFile()
-    # spawner_nbt['utags'] = TAG_Compound()
-
-    # spawner_nbt['utags']['isMovable']           = TAG_Byte(1)
-    # spawner_nbt['utags']['keepPacked']          = TAG_Byte(0)
-    # spawner_nbt['utags']['MaxNearbyEntities']   = TAG_Short(6)
-    # spawner_nbt['utags']['RequiredPlayerRange'] = TAG_Short(16)
-    # spawner_nbt['utags']['SpawnCount']          = TAG_Short(4)
-    # spawner_nbt['utags']['MaxSpawnDelay']       = TAG_Short(800)
-    # spawner_nbt['utags']['Delay']               = TAG_Short(20)
-    # spawner_nbt['utags']['SpawnRange']          = TAG_Short(4)
-    # spawner_nbt['utags']['MinSpawnDelay']       = TAG_Short(200)
-    # spawner_nbt['utags']['DisplayEntityHeight'] = TAG_Float(1.7999999)
-    # spawner_nbt['utags']['DisplayEntityScale']  = TAG_Float(1)
-    # spawner_nbt['utags']['DisplayEntityWidth']  = TAG_Float(0.8)
-
-    # spawner_nbt['utags']['EntityIdentifier'] = TAG_String(mob)
-    # spawner_nbt['utags']['SpawnData'] = TAG_Compound({'id': TAG_String(mob)})
-    # spawner_nbt['utags']['SpawnPotentials'] = amulet_nbt.TAG_List(
-    #     [
-    #         TAG_Compound({
-    #             "Entity": TAG_Compound({'id': TAG_String(mob)}),
-    #             "Weight": TAG_Int(1)
-    #         })
-    #     ])
-    # spawner = BlockEntity("universal_minecraft","spawner",ox,oy,oz, spawner_nbt)
-
     spawner_chunk.block_entities.insert(spawner)
 
 def to_nbt(data):
@@ -104,6 +82,8 @@ def to_nbt(data):
         return TAG_Double(data.num)
     elif type(data) is Byte:
         return TAG_Byte(data.num)
+    else:
+        print(f"Excuse me, but you failed! {type(data)}")
 
 #Dummy Classes
 #Python has some data types that directly correspond to nbt types, but others that don't. We make these dummy classes so that we can easily declare it, and the to_nbt function will know what to do.
@@ -123,8 +103,161 @@ class Byte():
     def __init__(self, num):
         self.num = num
 
+#Helpers
+class Mob():
+    '''
+    Represents a single mob
+    '''
+    def __init__(self, id):
+        self.mob_dict = {'id': id}
+    
+    def _set_hand(self, hand_id, data, tag, drop_chance):
+        if type(data) is str:
+            item = {'Count':Byte(1), 'id': data}
+        else:
+            item = data
+        
+        if tag:
+            item['tag'] = tag
+        
+        if 'HandItems' in self.mob_dict:
+            self.mob_dict['HandItems'][hand_id] = item
+        else:
+            self.mob_dict['HandItems'] = [{},{}]
+            self.mob_dict['HandItems'][hand_id] = item
+        
+        if drop_chance:
+            if 'HandDropChances' in self.mob_dict:
+                self.mob_dict['HandDropChances'][hand_id] = drop_chance
+            else:
+                self.mob_dict['HandDropChances'] = [0.0, 0.0]
+                self.mob_dict['HandDropChances'][hand_id] = drop_chance
+
+    def _set_armor(self, slot_id, data, tag, drop_chance):
+        item = data
+        if type(data) is str:
+            item = {}
+            item['id'] = data
+            item['Count'] = Byte(1)
+            if tag:
+                item['tag'] = tag
+        
+        if 'ArmorItems' in self.mob_dict:
+            self.mob_dict['ArmorItems'][slot_id] = item
+        else:
+            self.mob_dict['ArmorItems'] = [{}, {}, {}, {}]
+            self.mob_dict['ArmorItems'][slot_id] = item
+        
+        if drop_chance:
+            if 'ArmorDropChances' in self.mob_dict:
+                self.mob_dict['ArmorDropChances'][slot_id] = drop_chance
+            else:
+                self.mob_dict['ArmorDropChances'] = [0.0, 0.0, 0.0, 0.0]
+                self.mob_dict['ArmorDropChances'][slot_id] = drop_chance
+        
+    def helmet(self, data, tag = None, drop_chance = None):
+        self._set_armor(3, data, tag, drop_chance)
+
+    def chestplate(self, data, tag = None, drop_chance = None):
+        self._set_armor(2, data, tag, drop_chance)
+
+    def leggings(self, data, tag = None, drop_chance = None):
+        self._set_armor(1, data, tag, drop_chance)
+    
+    def boots(self, data, tag = None, drop_chance = None):
+        self._set_armor(0, data, tag, drop_chance)
+
+    def right_hand(self, data, tag = None, drop_chance = None):
+        self._set_hand(0, data, tag, drop_chance)
+    
+    def left_hand(self, data, tag = None, drop_chance = None):
+        self._set_hand(1, data, tag, drop_chance)
+    
+    def effect(self, data, amplifier = None, duration = None):
+        item = data
+        if type(data) is int:
+            item = {}
+            item['Id'] = Byte(data)
+            if amplifier:
+                item['Amplifier'] = Byte(amplifier)
+            else:
+                item['Amplifier'] = Byte(0)
+            
+            if duration:
+                item['Duration'] = duration
+            else:
+                item['Duration'] = 999999
+        
+        if 'ActiveEffects' in self.mob_dict:
+            self.mob_dict['ActiveEffects'].append(item)
+        else:
+            self.mob_dict['ActiveEffects'] = []
+            self.mob_dict['ActiveEffects'].append(item)
+        
+        
+
+    
+    def name(self, name):
+        self.mob_dict['CustomName'] = name
+
+#Definitions
+speed = 1
+slowness = 2
+haste = 3
+mining_fatigue = 4
+strength = 5
+instant_health = 6
+instant_damage = 7
+jump_boost = 8
+nausea=9
+regeneration=10
+resistance=11
+fire_resistance=12
+water_breathing=13
+invisibility=14
+blindness=15
+night_vision=16
+hunger=17
+weakness=18
+poison=19
+wither=20
+health_boost=21
+absorption=22
+saturation=23
+glowing=24
+levitation=25
+luck=26
+unluck=27
+slow_falling=28
+conduit_power=29
+dolphins_grace=30
+bad_omen=31
+hero_of_the_village=32
+
+mob_buffs = [speed, strength, regeneration, resistance, invisibility]
+
 if __name__ == "__main__":
     world = World(PATH, world_interface.load_format(PATH))
-    spawner(world, 3, 64, 3,"minecraft:zombie")
+    
+    # test_chunk = world.get_chunk(0,0)
+    # for i in test_chunk.block_entities:
+    #     print(i)
+
+    epic_zombie = {
+        'id': "minecraft:zombie",
+        'HandItems':[{'Count':Byte(1),'id':'minecraft:iron_sword'},{'Count':Byte(1),'id':'minecraft:iron_sword'}],
+        'CustomName': "\"Jerome\""
+    }
+
+    my_mob = Mob("minecraft:zombie")
+    my_mob.right_hand("minecraft:iron_sword", drop_chance = 1.0)
+    my_mob.left_hand("minecraft:shield")
+    my_mob.helmet("minecraft:carved_pumpkin")
+    my_mob.chestplate("minecraft:diamond_chestplate", drop_chance = 1.0)
+    my_mob.leggings("minecraft:diamond_leggings")
+    my_mob.effect(24)
+    my_mob.name("\"NO HIT ME!\"")
+    print(my_mob.mob_dict)
+    spawner(world, 0, 4, 0,my_mob.mob_dict)
     world.save()
     world.close()
