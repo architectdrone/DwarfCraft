@@ -18,14 +18,19 @@ def spawner(world, x, y, z, mob):
         #Convert to spawndata.
         spawner(world, x, y, z, {'id': mob})
         return
+    if type(mob) is Mob:
+        mob = mob.mob_dict
 
     place_single_block(world, blockstate_to_block("universal_minecraft:spawner"), x, y, z)
 
     cx = int(x/16)
-    cz = int(x/16)
-    ox = x-(cx*16)
+    cz = int(z/16)
+    # ox = x-(cx*16)
+    # oy = y
+    # oz = z-(cz*16)
+    ox = x
     oy = y
-    oz = z-(cz*16)
+    oz = z
 
     spawner_chunk = world.get_chunk(cx, cz)
     spawner_nbt = {
@@ -193,10 +198,7 @@ class Mob():
         else:
             self.mob_dict['ActiveEffects'] = []
             self.mob_dict['ActiveEffects'].append(item)
-        
-        
-
-    
+          
     def name(self, name):
         self.mob_dict['CustomName'] = name
 
