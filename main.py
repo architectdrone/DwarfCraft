@@ -1,32 +1,38 @@
 from caves import populate
 from edges import get_edges, is_ceiling, is_floor, is_wall, get_single_block
 from util import place_single_block, line_y, clamp, get_positions_in_sub_box, map, get_block_wrapper
+from spawners import *
 from amulet.api.world import *
 from amulet.api.selection import *
 from amulet.api.block import *
 from amulet.operations import fill
 from amulet import world_interface
 from amulet.api.errors import ChunkDoesNotExist
+from amulet.api.block_entity import BlockEntity
 from noise import pnoise3
+from amulet_nbt import *
 import math
 import random
 import time
 
 SQUARE_MAX = 64
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC4"
+PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC6"
 SEED = random.randint(0, 1000)
 
-CAVE_DECO = False #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
+CAVE_DECO = True #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
 
-GLOWSTONE_CLUSTERS = True #Whether glowstone clusters spawn
+GLOWSTONE_CLUSTERS = False #Whether glowstone clusters spawn
 GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.
 GLOWSTONE_CLUSTER_COMPRESSION = 0.25 #Percent of ceilings in a glowstone cluster that have a stalagtite on them.
 GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
 
-LAVA_POOLS = True #Whether Lava Pools Spawn
+LAVA_POOLS = False #Whether Lava Pools Spawn
 LAVA_POOL_SPAWN_CHANCE = 0.05 #Spawn chance for lava pools in the threshold
 LAVA_POOL_PUNISHMENT_FACTOR = 4 #Spawn rates are "punished" at higher altitudes. Increase this to increase the punishment factor. Conversely, you can set it 0 to do away with punishments, but, if you have fill mode on, I wouldn't reccomend that.
 LAVA_POOL_FAST = False #Use the "fast" method of generating lava pools. This prevents the dreaded "recursion limit exceeded" error.
+
+MOB_SPAWNERS = True #Whether mob spawners spawn
+MOB_SPAWNER_SPAWN_CHANCE = 0.01 #Chance of a floor block having a mob spawner. Be careful: Even 5% was too much.
 
 #Ore Spawning Numbers
 ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
@@ -109,6 +115,11 @@ def perlin(x, y, z, octaves = 1, base = 1, size=SQUARE_MAX):
 def perlin_choice(x, y, z, list):
     perlin_result = perlin(x, y, z)
     index = math.floor(perlin_result*(len(list)))
+    return list[index]
+
+def choose_random_weighted(weight, spread, list):
+    altered_weight = clamp(weight+(random.random()*(spread*2)-spread), 0, 1)
+    index = math.floor(altered_weight*(len(list)-1))
     return list[index]
 
 #Field Declaration
@@ -254,9 +265,19 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
                 z+=1
     #print("STACK IS EMPTY.")
 
+def handle_mob_spawners(world, x, y, z, spawn_chance):
+    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX:
+        the_mob = get_mob(y)
+        print(f"{x, y+1, z}: {the_mob.mob_dict}")
+        spawner(world, x, y+1, z, the_mob)
+
 #Misc World Gen
 def get_proper_ore(y):
-    #Placeholder
+    '''
+    We choose a random ore, and then adjust the size based on it's depth. (level of difficulty)
+
+    For example, if an ore appears at normalized depth of 0.5, and the ores dictionary specifies a depth of 0.4, the ore will be rewarded with a larger size.
+    '''
     global ores, SQUARE_MAX
     ore, diff = random.choice(ores)
     ideal_diff = 1-map(y, 0, SQUARE_MAX, 0, 1)
@@ -267,13 +288,13 @@ def get_proper_ore(y):
     return ore, int(size)
     
 def place_ore(world, x, y, z):
+    '''
+    We place a random ore vein centered at (x, y, z) 
+    '''
     ore, size = get_proper_ore(y)
-    #print(f"Placing {ore} vein on size {size} at {x, y, z}. Y={y} has a diff of {1-map(y, 0, SQUARE_MAX, 0, 1)}")
     if size == 0:
-        #print("\tNothing else to do.")
         return
     elif size == 1:
-        #print("\tWe done here.")
         place_single_block(world, ore, x, y, z)
     else:
         for i in range(size):
@@ -281,19 +302,66 @@ def place_ore(world, x, y, z):
             place_y = clamp(y+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
             place_z = clamp(z+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
             place_single_block(world, ore, place_x, place_y, place_z)
-            #print(f"\tPlacing element #{i} at {place_x, place_y, place_z}")
-        #print("\tDone.")
 
+def get_mob(y):
+    '''
+    Get proper mob, depending on height.
+    '''
+
+    normalized_y = 1-map(y, 0, SQUARE_MAX, 0, 1)
+
+    #First, we choose the mob.
+    normal_hostile_mobs = ['minecraft:witch', 'minecraft:skeleton', 'minecraft:slime', 'minecraft:creeper', 'minecraft:zombie', 'minecraft:enderman', 'minecraft:spider']
+    esoteric_hostile_mobs = ['minecraft:blaze', 'minecraft:magma_cube', 'minecraft:evoker', 'minecraft:vindicator', 'minecraft:wither_skeleton']
+    if normalized_y < 0.5:
+        mobName = random.choice(normal_hostile_mobs)
+    else:
+        mobName = random.choice(normal_hostile_mobs+esoteric_hostile_mobs)
+    mob = Mob(mobName)
+
+    #Next, we choose the armor and weapons
+    armor_materials = ['leather', 'chainmail', 'iron', 'golden', 'diamond']
+    weapon_materials = ['wooden', 'stone', 'iron', 'golden', 'diamond']
+    can_wear_armor = mobName in ['minecraft:zombie', "mincraft:skeleton"]
+    if random.random() < normalized_y and can_wear_armor:
+        mob.helmet("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_helmet", drop_chance = 0.5)
+    if random.random() < normalized_y and can_wear_armor:
+        mob.chestplate("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_chestplate", drop_chance = 0.5)
+    if random.random() < normalized_y and can_wear_armor:
+        mob.leggings("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_leggings", drop_chance = 0.5)
+    if random.random() < normalized_y and can_wear_armor:
+        mob.boots("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_boots", drop_chance = 0.5)
+    if random.random() < normalized_y and mobName == "minecraft:zombie":
+        #We always want skeleton's weapon to be bow
+        mob.helmet("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_boots", drop_chance = 0.5)
+    
+    #Next, we choose effect(s)
+    if random.random() < normalized_y:
+        number_of_effects = math.floor(5*random.random()*normalized_y)
+        effects = random.choices(mob_buffs)
+        for i in effects:
+            _amplifier = math.floor(5*random.random()*normalized_y)
+            mob.effect(i, amplifier = _amplifier)
+        
+    #We are done.
+    return mob
+    
 if __name__ == "__main__":
     program_start = time.time()
 
     subbox = SubSelectionBox(min, max)
     target_area = Selection([subbox])
 
+
     start = time.time()
     print("LOADING WORLD...")
     world = World(PATH, world_interface.load_format(PATH))
     print(f"DONE in {time.time()-start}s")
+
+    # #Resetting area.
+    # big_max = (SQUARE_MAX, 255, SQUARE_MAX)
+    # big_target_area = Selection([SubSelectionBox(min, big_max)])
+    # fill.fill(world, 0, big_target_area, {'fill_block': air})
 
     start = time.time()
     print("STONIFICATION...")
@@ -323,9 +391,12 @@ if __name__ == "__main__":
                 handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
             if LAVA_POOLS:
                 handle_lava_pools(world, x, y, z, fast = LAVA_POOL_FAST)
-    
-    print(f"DONE in {time.time()-start}s.")
+            if MOB_SPAWNERS:
+                handle_mob_spawners(world, x, y, z, MOB_SPAWNER_SPAWN_CHANCE)
 
+    print(f"DONE in {time.time()-start}s.")
+    
     print(f"ALL DONE in {time.time()-program_start}")
+
     world.save()
     world.close()
