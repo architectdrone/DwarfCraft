@@ -19,14 +19,16 @@ SQUARE_MAX = 64
 PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC6"
 SEED = random.randint(0, 1000)
 
+FULL_RESET = False
+
 CAVE_DECO = True #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
 
-GLOWSTONE_CLUSTERS = False #Whether glowstone clusters spawn
+GLOWSTONE_CLUSTERS = True #Whether glowstone clusters spawn
 GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.
 GLOWSTONE_CLUSTER_COMPRESSION = 0.25 #Percent of ceilings in a glowstone cluster that have a stalagtite on them.
 GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
 
-LAVA_POOLS = False #Whether Lava Pools Spawn
+LAVA_POOLS = True #Whether Lava Pools Spawn
 LAVA_POOL_SPAWN_CHANCE = 0.05 #Spawn chance for lava pools in the threshold
 LAVA_POOL_PUNISHMENT_FACTOR = 4 #Spawn rates are "punished" at higher altitudes. Increase this to increase the punishment factor. Conversely, you can set it 0 to do away with punishments, but, if you have fill mode on, I wouldn't reccomend that.
 LAVA_POOL_FAST = False #Use the "fast" method of generating lava pools. This prevents the dreaded "recursion limit exceeded" error.
@@ -72,7 +74,9 @@ emerald_ore = blockstate_to_block("universal_minecraft:emerald_ore")
 diamond_ore = blockstate_to_block("universal_minecraft:diamond_ore")
 silverfish_egg = blockstate_to_block("infested_stone")
 diamond_block = blockstate_to_block("diamond_block")
-
+oak_leaves = blockstate_to_block("oak_leaves")
+oak_log = blockstate_to_block("oak_log")
+melon = blockstate_to_block("melon")
 ores = [
     (coal_ore, COAL_DIFF),
     (iron_ore, IRON_DIFF),
@@ -130,29 +134,41 @@ def choose_random_weighted(weight, spread, list):
     index = math.floor(altered_weight*(len(list)-1))
     return list[index]
 
-#Field Declaration
-def hazard_field(x, y, z):
-    '''
-    Degree of danger, between 0.0 (safe) and 1.0 (dangerous). 0.5 is the average.
-    '''
-    hazard_seed = SEED+666 #HELL YEAH
-    return perlin(x, y, z, base=hazard_seed)
-
 #Cave Decoration
-def grow_stalagtite(world, x, y, z, block, height):
-    '''
-    Places a stalagtite. Note that this implementation is fast, but not perfect. 
-    A negative consequence is that stalagtites may cut through the floor of a cave into an adjacent cave.
-    The previous (perfect) implementation took about 5x longer.
-    '''
-    global air
-    if (height < 0):
-        return
-    if ((y-height)<0) or world.get_block(x, y-height, z) != air:
-        grow_stalagtite(world, x, y, z, block, int(math.floor(height/2))) #Try again with a shorter height.
-    else:
-        fill.fill(world, 0, line_y(x, y, z, height, False), {'fill_block':block})
 
+def handle_lava_pools(world, x, y, z):
+    floor = is_floor(world, x, y, z)
+    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**LAVA_POOL_PUNISHMENT_FACTOR #We want to punish the spawn chance at high altitudes. This equation does exactly that.
+    spawn = perlin_probability(scaling_factor*LAVA_POOL_SPAWN_CHANCE, x, y, z, seed = SEED*5)
+
+    if floor and spawn:
+        if not LAVA_POOL_FAST:
+            place_single_block(world, air, x, y, z)
+            return scanline_pool_fill(world, x, y, z, lava)
+        else:
+            place_single_block(world, lava, x, y, z)
+            return 1
+    return 0
+
+def handle_glowstone_clusters(world, x, y, z):
+    handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
+
+def handle_mob_spawners(world, x, y, z, spawn_chance):
+    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX:
+        the_mob = get_mob(y)
+        spawner(world, x, y+1, z, the_mob)
+
+def handle_bushes(world, x, y, z):
+    is_bush_cluster = perlin_probability(BUSH_SPAWN_CHANCE, x, y, z, seed = SEED*3)
+    is_bush_spawn_location = random.random() < BUSH_COMPRESSION
+
+    if is_bush_cluster and is_bush_spawn_location:
+        log = oak_log
+        leaves = oak_leaves
+        length = random.randrange(BUSH_MIN_SIZE, BUSH_MAX_SIZE)
+        create_bush(world, x, y, z, log, leaves, 0, length)
+
+#Misc World Gen
 def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length):
     '''
     Takes care of placing stalagtite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
@@ -167,160 +183,6 @@ def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression,
                 grow_stalagtite(world, x, y-1, z, block, length)
     return to_return
 
-def handle_lava_pools(world, x, y, z, fast = False):
-    floor = is_floor(world, x, y, z)
-    #correct_hazard_level = hazard_field(x, y, z) > LAVA_POOL_HAZARD_THRESHOLD
-    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**LAVA_POOL_PUNISHMENT_FACTOR #We want to punish the spawn chance at high altitudes. This equation does exactly that.
-    spawn = perlin_probability(scaling_factor*LAVA_POOL_SPAWN_CHANCE, x, y, z, seed = SEED*5)
-
-    if floor and spawn:
-        if not fast:
-            place_single_block(world, air, x, y, z)
-            return scanline_pool_fill(world, x, y, z, lava)
-        else:
-            place_single_block(world, lava, x, y, z)
-            return 1
-    return 0
-
-def slow_pool_fill(world, x, y, z, block, downwards = False):
-    '''
-    We use a modified flood fill algorithim. This is likely to be slow.
-    Also, there are some silly little bugs, due to preserving stack space.
-    '''
-    #print(f"Looking at {x, y, z}. ", end = "")
-    if (x < 0 or x > SQUARE_MAX) or (y < 0 or y > SQUARE_MAX) or (z < 0 or z > SQUARE_MAX):
-        #print("Outta bounds!")
-        return 0
-    elif world.get_block(x, y, z) == air:
-        #print("That's good!")
-        if downwards:
-            place_single_block(world, block, x, y, z)
-            return slow_pool_fill(world, x, y, z, block, downwards = True)+1
-        else:
-            place_single_block(world, block, x, y, z)
-            total = 1
-            total+=slow_pool_fill(world, x-1, y  , z  , block)
-            total+=slow_pool_fill(world, x+1, y  , z  , block)
-            total+=slow_pool_fill(world, x  , y-1, z  , block, downwards = True)
-            total+=slow_pool_fill(world, x  , y  , z-1, block)
-            total+=slow_pool_fill(world, x  , y  , z+1, block)
-            return total
-    else:
-        #print("Not Air, no can do!")
-        return 0
-
-def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
-    '''
-    Assume we start at edge.
-    '''
-    if left_to_right == None:
-        scanline_pool_fill(world, sx, sy, sz, block, left_to_right = True)
-        scanline_pool_fill(world, sx, sy, sz, block, left_to_right = False)
-
-    #print(f"RUNNING SCANLINE FILL AT {sx, sy, sz}")
-
-    first = True
-
-    stack = [(sx, sy, sz)]
-    up_empty = False
-    dn_empty = False
-
-    while stack != []:
-        x, y, z = stack[-1]
-        stack = stack[:-1]
-        up_empty = False
-        dn_empty = False
-        #print(f"\tPopping {x, y, z} off of the stack.")
-        while True:
-            try:
-                if x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > SQUARE_MAX or z < 0 or (get_block_wrapper(world, x, y, z) != air and not first):
-                    #print(f"\t\t\t Hit a wall.")
-                    break
-            except ChunkDoesNotExist:
-                print(f"{x, y, z} caused an EPIC FAIL!")
-                break
-                
-            if not up_empty and get_block_wrapper(world, x+1, y, z) == air:
-                #print(f"\t\t\t Detected an empty spot at {x+1, y, z} (UP)")
-                up_empty = True
-                stack.append((x+1, y, z))
-            elif not dn_empty and get_block_wrapper(world,x-1, y, z) == air:
-                #print(f"\t\t\t Detected an empty spot at {x-1, y, z} (DN)")
-                dn_empty = True
-                stack.append((x-1, y, z))
-            elif up_empty and get_block_wrapper(world,x+1, y, z) != air:
-                up_empty = False
-            elif dn_empty and get_block_wrapper(world,x-1, y, z) != air:
-                dn_empty = False
-            
-            #print(f"\t\t Filling {x, y, z}.")
-            place_single_block(world, block, x, y, z)
-            
-            alter_y = y-1
-            while True:
-                if get_block_wrapper(world,x, alter_y, z) != air or alter_y < 0:
-                    break
-                else:
-                    place_single_block(world, block, x, alter_y, z)
-                    alter_y-=1 
-            #slow_pool_fill(world, x, y-1, z, block, downwards=True)
-            
-            first = False
-
-            if left_to_right:
-                z-=1
-            else:
-                z+=1
-    #print("STACK IS EMPTY.")
-
-def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
-    #print(f"\tLooking at {x, y, z}. current = {current_distance}, maximum = {maximum_distance}")
-    if (get_block_wrapper(world, x, y, z) != air and current_distance != 0) or current_distance >= maximum_distance:
-        #print(f"\t\tOut of range or non-air")
-        return
-    if (x<0) or (x>SQUARE_MAX) or (y<0) or (y>SQUARE_MAX) or (z<0) or (z>SQUARE_MAX):
-        return
-
-    normalized_distance = map(current_distance, 0, maximum_distance, 0, 1)
-
-    if random.random() < normalized_distance: #Early breakoffs
-        #print(f"\t\tRandom breakoff (norm = {normalized_distance}")
-        return
-
-    if random.random() < normalized_distance:
-        if BUSH_MELONS and random.random() < BUSH_MELON_SPAWN_CHANCE:
-            block = melon
-        else:
-            block = leaf
-    else:
-        block = log
-    
-    place_single_block(world, block, x, y, z)
-    create_bush(world, x-1, y, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x+1, y, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y-1, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance)
-
-def handle_mob_spawners(world, x, y, z, spawn_chance):
-    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX:
-        the_mob = get_mob(y)
-        print(f"{x, y+1, z}: {the_mob.mob_dict}")
-        spawner(world, x, y+1, z, the_mob)
-
-def handle_bushes(world, x, y, z):
-    is_bush_cluster = perlin_probability(BUSH_SPAWN_CHANCE, x, y, z, seed = SEED*3)
-    is_bush_spawn_location = random.random() < BUSH_COMPRESSION
-
-    if is_bush_cluster and is_bush_spawn_location:
-        log = oak_log
-        leaves = oak_leaves
-        length = random.randrange(BUSH_MIN_SIZE, BUSH_MAX_SIZE)
-        create_bush(world, x, y, z, log, leaves, 0, length)
-
-
-#Misc World Gen
 def get_proper_ore(y):
     '''
     We choose a random ore, and then adjust the size based on it's depth. (level of difficulty)
@@ -394,7 +256,103 @@ def get_mob(y):
         
     #We are done.
     return mob
+
+def grow_stalagtite(world, x, y, z, block, height):
+    '''
+    Places a stalagtite. Note that this implementation is fast, but not perfect. 
+    A negative consequence is that stalagtites may cut through the floor of a cave into an adjacent cave.
+    The previous (perfect) implementation took about 5x longer.
+    '''
+    global air
+    if (height < 0):
+        return
+    if ((y-height)<0) or world.get_block(x, y-height, z) != air:
+        grow_stalagtite(world, x, y, z, block, int(math.floor(height/2))) #Try again with a shorter height.
+    else:
+        fill.fill(world, 0, line_y(x, y, z, height, False), {'fill_block':block})
+
+def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
+    '''
+    Assume we start at edge.
+    '''
+    if left_to_right == None:
+        scanline_pool_fill(world, sx, sy, sz, block, left_to_right = True)
+        scanline_pool_fill(world, sx, sy, sz, block, left_to_right = False)
+
+    first = True
+
+    stack = [(sx, sy, sz)]
+    up_empty = False
+    dn_empty = False
+
+    while stack != []:
+        x, y, z = stack[-1]
+        stack = stack[:-1]
+        up_empty = False
+        dn_empty = False
+        while True:
+            try:
+                if x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > SQUARE_MAX or z < 0 or (get_block_wrapper(world, x, y, z) != air and not first):
+                    break
+            except ChunkDoesNotExist:
+                print(f"{x, y, z} caused an EPIC FAIL!")
+                break
+                
+            if not up_empty and get_block_wrapper(world, x+1, y, z) == air:
+                up_empty = True
+                stack.append((x+1, y, z))
+            elif not dn_empty and get_block_wrapper(world,x-1, y, z) == air:
+                dn_empty = True
+                stack.append((x-1, y, z))
+            elif up_empty and get_block_wrapper(world,x+1, y, z) != air:
+                up_empty = False
+            elif dn_empty and get_block_wrapper(world,x-1, y, z) != air:
+                dn_empty = False
+            
+            place_single_block(world, block, x, y, z)
+            
+            alter_y = y-1
+            while True:
+                if get_block_wrapper(world,x, alter_y, z) != air or alter_y < 0:
+                    break
+                else:
+                    place_single_block(world, block, x, alter_y, z)
+                    alter_y-=1 
+            
+            first = False
+
+            if left_to_right:
+                z-=1
+            else:
+                z+=1
+
+def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
+    if (get_block_wrapper(world, x, y, z) != air and current_distance != 0) or current_distance >= maximum_distance:
+        return
+    if (x<0) or (x>SQUARE_MAX) or (y<0) or (y>SQUARE_MAX) or (z<0) or (z>SQUARE_MAX):
+        return
+
+    normalized_distance = map(current_distance, 0, maximum_distance, 0, 1)
+
+    if random.random() < normalized_distance: #Early breakoffs
+        return
+
+    if random.random() < normalized_distance:
+        if BUSH_MELONS and random.random() < BUSH_MELON_SPAWN_CHANCE:
+            block = melon
+        else:
+            block = leaf
+    else:
+        block = log
     
+    place_single_block(world, block, x, y, z)
+    create_bush(world, x-1, y, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x+1, y, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y-1, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance)
+
 if __name__ == "__main__":
     program_start = time.time()
 
@@ -407,10 +365,10 @@ if __name__ == "__main__":
     world = World(PATH, world_interface.load_format(PATH))
     print(f"DONE in {time.time()-start}s")
 
-    # #Resetting area.
-    # big_max = (SQUARE_MAX, 255, SQUARE_MAX)
-    # big_target_area = Selection([SubSelectionBox(min, big_max)])
-    # fill.fill(world, 0, big_target_area, {'fill_block': air})
+    if FULL_RESET:
+        big_max = (SQUARE_MAX, 255, SQUARE_MAX)
+        big_target_area = Selection([SubSelectionBox(min, big_max)])
+        fill.fill(world, 0, big_target_area, {'fill_block': air})
 
     start = time.time()
     print("STONIFICATION...")
@@ -437,9 +395,9 @@ if __name__ == "__main__":
     if CAVE_DECO:
         for x, y, z in get_edges(world, subbox):
             if GLOWSTONE_CLUSTERS:
-                handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
+                handle_glowstone_clusters(world, x, y, z)
             if LAVA_POOLS:
-                handle_lava_pools(world, x, y, z, fast = LAVA_POOL_FAST)
+                handle_lava_pools(world, x, y, z)
             if MOB_SPAWNERS:
                 handle_mob_spawners(world, x, y, z, MOB_SPAWNER_SPAWN_CHANCE)
             if BUSHES:
