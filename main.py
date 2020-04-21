@@ -333,7 +333,7 @@ def get_mob(y):
         mob.boots("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_boots", drop_chance = 0.5)
     if random.random() < normalized_y and mobName == "minecraft:zombie":
         #We always want skeleton's weapon to be bow
-        mob.helmet("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_boots", drop_chance = 0.5)
+        mob.right_hand("minecraft:"+choose_random_weighted(normalized_y, 0.2, armor_materials)+"_sword", drop_chance = 0.5)
     
     #Next, we choose effect(s)
     if random.random() < normalized_y:
