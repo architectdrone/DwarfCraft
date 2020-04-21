@@ -34,6 +34,14 @@ LAVA_POOL_FAST = False #Use the "fast" method of generating lava pools. This pre
 MOB_SPAWNERS = True #Whether mob spawners spawn
 MOB_SPAWNER_SPAWN_CHANCE = 0.01 #Chance of a floor block having a mob spawner. Be careful: Even 5% was too much.
 
+BUSHES = True #Whether bushes spawn.
+BUSH_MELONS = True #Whether melons grow on bushes.
+BUSH_MELON_SPAWN_CHANCE = 0.05 #Chance that a particular leaf will be a melon block.
+BUSH_SPAWN_CHANCE = 0.5 #Chance that any edge will be in a bush cluster.
+BUSH_COMPRESSION = 0.05 #Chance that an edge in a bush cluster will have a bush
+BUSH_MIN_SIZE = 5
+BUSH_MAX_SIZE = 10
+
 #Ore Spawning Numbers
 ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
 ORE_POCKET_SIZE = 5 #Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.
@@ -265,11 +273,52 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
                 z+=1
     #print("STACK IS EMPTY.")
 
+def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
+    #print(f"\tLooking at {x, y, z}. current = {current_distance}, maximum = {maximum_distance}")
+    if (get_block_wrapper(world, x, y, z) != air and current_distance != 0) or current_distance >= maximum_distance:
+        #print(f"\t\tOut of range or non-air")
+        return
+    if (x<0) or (x>SQUARE_MAX) or (y<0) or (y>SQUARE_MAX) or (z<0) or (z>SQUARE_MAX):
+        return
+
+    normalized_distance = map(current_distance, 0, maximum_distance, 0, 1)
+
+    if random.random() < normalized_distance: #Early breakoffs
+        #print(f"\t\tRandom breakoff (norm = {normalized_distance}")
+        return
+
+    if random.random() < normalized_distance:
+        if BUSH_MELONS and random.random() < BUSH_MELON_SPAWN_CHANCE:
+            block = melon
+        else:
+            block = leaf
+    else:
+        block = log
+    
+    place_single_block(world, block, x, y, z)
+    create_bush(world, x-1, y, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x+1, y, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y-1, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance)
+
 def handle_mob_spawners(world, x, y, z, spawn_chance):
     if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX:
         the_mob = get_mob(y)
         print(f"{x, y+1, z}: {the_mob.mob_dict}")
         spawner(world, x, y+1, z, the_mob)
+
+def handle_bushes(world, x, y, z):
+    is_bush_cluster = perlin_probability(BUSH_SPAWN_CHANCE, x, y, z, seed = SEED*3)
+    is_bush_spawn_location = random.random() < BUSH_COMPRESSION
+
+    if is_bush_cluster and is_bush_spawn_location:
+        log = oak_log
+        leaves = oak_leaves
+        length = random.randrange(BUSH_MIN_SIZE, BUSH_MAX_SIZE)
+        create_bush(world, x, y, z, log, leaves, 0, length)
+
 
 #Misc World Gen
 def get_proper_ore(y):
@@ -393,6 +442,8 @@ if __name__ == "__main__":
                 handle_lava_pools(world, x, y, z, fast = LAVA_POOL_FAST)
             if MOB_SPAWNERS:
                 handle_mob_spawners(world, x, y, z, MOB_SPAWNER_SPAWN_CHANCE)
+            if BUSHES:
+                handle_bushes(world, x, y, z)
 
     print(f"DONE in {time.time()-start}s.")
     
