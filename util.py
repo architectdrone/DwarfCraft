@@ -33,7 +33,8 @@ def get_single_block(x,y,z):
     return SubSelectionBox(lo, hi)
 
 def place_single_block(world, block, x, y, z):
-    fill.fill(world, 0, get_single_block(x, y, z), {'fill_block':block})
+    if y>=0:
+        fill.fill(world, 0, get_single_block(x, y, z), {'fill_block':block})
 
 def get_block_wrapper(world, x, y, z):
     '''
