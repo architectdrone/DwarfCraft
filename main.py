@@ -40,9 +40,13 @@ BUSHES = True #Whether bushes spawn.
 BUSH_MELONS = True #Whether melons grow on bushes.
 BUSH_MELON_SPAWN_CHANCE = 0.05 #Chance that a particular leaf will be a melon block.
 BUSH_SPAWN_CHANCE = 0.5 #Chance that any edge will be in a bush cluster.
-BUSH_COMPRESSION = 0.05 #Chance that an edge in a bush cluster will have a bush
+BUSH_COMPRESSION = 0.01 #Chance that an edge in a bush cluster will have a bush
 BUSH_MIN_SIZE = 5
 BUSH_MAX_SIZE = 10
+
+BIOMES = True #Whether biome decoration occurs.
+FLOWER_SPAWN_CHANCE = 0.05
+GRASS_SPAWN_CHANCE = 0.1
 
 #Ore Spawning Numbers
 ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
@@ -66,6 +70,9 @@ stone = blockstate_to_block("universal_minecraft:stone")
 dirt = blockstate_to_block("universal_minecraft:dirt")
 podzol = blockstate_to_block("universal_minecraft:podzol")
 cobblestone = blockstate_to_block("universal_minecraft:cobblestone")
+gravel = blockstate_to_block("gravel")
+grass_block = blockstate_to_block("minecraft:grass_block")
+grass = blockstate_to_block("minecraft:grass")
 lava = blockstate_to_block("universal_minecraft:lava")
 coal_ore = blockstate_to_block("universal_minecraft:coal_ore")
 iron_ore = blockstate_to_block("universal_minecraft:iron_ore")
@@ -77,6 +84,15 @@ diamond_block = blockstate_to_block("diamond_block")
 oak_leaves = blockstate_to_block("oak_leaves")
 oak_log = blockstate_to_block("oak_log")
 melon = blockstate_to_block("melon")
+flowers = [
+    blockstate_to_block("minecraft:dandelion"),
+    blockstate_to_block("minecraft:poppy"),
+    blockstate_to_block("minecraft:blue_orchid"),
+    blockstate_to_block("minecraft:allium"),
+    blockstate_to_block("minecraft:azure_bluet"),
+    blockstate_to_block("minecraft:red_tulip"),
+    blockstate_to_block("minecraft:orange_tulip")
+]
 ores = [
     (coal_ore, COAL_DIFF),
     (iron_ore, IRON_DIFF),
@@ -98,11 +114,10 @@ def distance_to_probability(distance):
     Based on a linear interpolation of data collected from running 100 tests with different seeds. Valid only if octaves = 1.
     (Deprecated)
     '''
-    print("(DISTANCE TO PROBABILITY)THIS IS DEPRECATED. IF YOU NEED TO USE IT, PLEASE REDO CALCULATIONS.")
-    if distance < 0.12:
-        return 5.82*distance+0.0148
+    if distance < 0.15:
+        return 4.95*distance
     else:
-        return 0.27*math.log(distance)+1.26
+        return 1.67*distance + 0.534
 
 def probability_to_distance(probability):
     '''
@@ -113,10 +128,27 @@ def probability_to_distance(probability):
     else:
         return 0.0127*math.exp(3.39*probability)
 
+def perlin_distance(x, y, z, seed = SEED):
+    '''
+    Returns distance from 0.5 at the specified coordinates.
+    '''
+    return abs(perlin(x, y, z, octaves=1, base = seed)-0.5)
+
 def perlin_probability(percent_chance, x, y, z, seed = SEED):
-    distance = abs(perlin(x, y, z, octaves=1, base = seed)-0.5)
+    distance = perlin_distance(x, y, z, seed = SEED)
     success_distance = clamp(probability_to_distance(percent_chance), 0, 1)
     return distance < success_distance
+
+def perlin_probability_selection(max, x, y, z, seed = SEED):
+    '''
+    Returns a number between 0 and max.
+    '''
+
+    for i in range(max+1):
+        threshold = (i+1)/(max+1)
+        if perlin_probability(threshold, x, y, z, seed = seed):
+            return i
+    return max
 
 def perlin(x, y, z, octaves = 1, base = 1, size=SQUARE_MAX):
     '''
@@ -125,8 +157,7 @@ def perlin(x, y, z, octaves = 1, base = 1, size=SQUARE_MAX):
     return clamp(((pnoise3(x/size, y/size, z/size, octaves = octaves, base = base)+1)/2)+0.0535, 0, 0.999)
 
 def perlin_choice(x, y, z, list):
-    perlin_result = perlin(x, y, z)
-    index = math.floor(perlin_result*(len(list)))
+    index = perlin_probability_selection(len(list)-1, x, y, z)
     return list[index]
 
 def choose_random_weighted(weight, spread, list):
@@ -135,7 +166,6 @@ def choose_random_weighted(weight, spread, list):
     return list[index]
 
 #Cave Decoration
-
 def handle_lava_pools(world, x, y, z):
     floor = is_floor(world, x, y, z)
     scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**LAVA_POOL_PUNISHMENT_FACTOR #We want to punish the spawn chance at high altitudes. This equation does exactly that.
@@ -154,7 +184,7 @@ def handle_glowstone_clusters(world, x, y, z):
     handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
 
 def handle_mob_spawners(world, x, y, z, spawn_chance):
-    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX:
+    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX and get_block_wrapper(world, x, y, z) == stone:
         the_mob = get_mob(y)
         spawner(world, x, y+1, z, the_mob)
 
@@ -162,11 +192,30 @@ def handle_bushes(world, x, y, z):
     is_bush_cluster = perlin_probability(BUSH_SPAWN_CHANCE, x, y, z, seed = SEED*3)
     is_bush_spawn_location = random.random() < BUSH_COMPRESSION
 
-    if is_bush_cluster and is_bush_spawn_location:
+    if is_bush_cluster and is_bush_spawn_location and get_block_wrapper(world, x, y, z) == stone:
         log = oak_log
         leaves = oak_leaves
         length = random.randrange(BUSH_MIN_SIZE, BUSH_MAX_SIZE)
         create_bush(world, x, y, z, log, leaves, 0, length)
+
+def handle_biomes(world, x, y, z):
+    stone_biome_blocks = [stone, cobblestone, gravel]
+    organic_biome_blocks = [dirt, podzol, grass_block]
+
+    if get_block_wrapper(world, x, y, z) == stone:
+        if is_floor(world, x, y, z):
+            if get_biome(x, y, z) == 0:
+                place_single_block(world, perlin_choice(x, y, z, stone_biome_blocks), x, y, z)
+            else:
+                place_single_block(world, perlin_choice(x, y, z, organic_biome_blocks), x, y, z)
+                if random.random() < FLOWER_SPAWN_CHANCE:
+                    place_single_block(world, random.choice(flowers), x, y+1, z)
+                elif random.random() < GRASS_SPAWN_CHANCE:
+                    place_single_block(world, grass, x, y+1, z)
+            
+        else:
+            if get_biome(x, y, z) == 1:
+                place_single_block(world, dirt, x, y, z)
 
 #Misc World Gen
 def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length):
@@ -256,6 +305,14 @@ def get_mob(y):
         
     #We are done.
     return mob
+
+def get_biome(x, y, z, seed = SEED*3):
+    '''
+    Returns:
+    0 for stone
+    1 for organic
+    '''
+    return perlin_probability_selection(1, x, y, z, seed = seed)
 
 def grow_stalagtite(world, x, y, z, block, height):
     '''
@@ -359,7 +416,6 @@ if __name__ == "__main__":
     subbox = SubSelectionBox(min, max)
     target_area = Selection([subbox])
 
-
     start = time.time()
     print("LOADING WORLD...")
     world = World(PATH, world_interface.load_format(PATH))
@@ -402,6 +458,8 @@ if __name__ == "__main__":
                 handle_mob_spawners(world, x, y, z, MOB_SPAWNER_SPAWN_CHANCE)
             if BUSHES:
                 handle_bushes(world, x, y, z)
+            if BIOMES:
+                handle_biomes(world, x, y, z)
 
     print(f"DONE in {time.time()-start}s.")
     
