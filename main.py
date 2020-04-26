@@ -48,6 +48,11 @@ BIOMES = True #Whether biome decoration occurs.
 FLOWER_SPAWN_CHANCE = 0.05
 GRASS_SPAWN_CHANCE = 0.1
 
+WATER_POOLS = True
+WATER_POOL_SAND_BORDER = True
+WATER_POOL_SPAWN_CHANCE = 0.25
+WATER_POOL_SUGARCANE_SPAWN_CHANCE = 0.25
+
 #Ore Spawning Numbers
 ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
 ORE_POCKET_SIZE = 5 #Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.
@@ -68,12 +73,14 @@ air = blockstate_to_block("universal_minecraft:air")
 glowstone = blockstate_to_block("universal_minecraft:glowstone")
 stone = blockstate_to_block("universal_minecraft:stone")
 dirt = blockstate_to_block("universal_minecraft:dirt")
+sand = blockstate_to_block("universal_minecraft:sand")
 podzol = blockstate_to_block("universal_minecraft:podzol")
 cobblestone = blockstate_to_block("universal_minecraft:cobblestone")
 gravel = blockstate_to_block("gravel")
 grass_block = blockstate_to_block("minecraft:grass_block")
 grass = blockstate_to_block("minecraft:grass")
 lava = blockstate_to_block("universal_minecraft:lava")
+water = blockstate_to_block("universal_minecraft:water")
 coal_ore = blockstate_to_block("universal_minecraft:coal_ore")
 iron_ore = blockstate_to_block("universal_minecraft:iron_ore")
 gold_ore = blockstate_to_block("universal_minecraft:gold_ore")
@@ -84,6 +91,8 @@ diamond_block = blockstate_to_block("diamond_block")
 oak_leaves = blockstate_to_block("oak_leaves")
 oak_log = blockstate_to_block("oak_log")
 melon = blockstate_to_block("melon")
+sugarcane = blockstate_to_block("universal_minecraft:sugar_cane")
+
 flowers = [
     blockstate_to_block("minecraft:dandelion"),
     blockstate_to_block("minecraft:poppy"),
@@ -102,6 +111,9 @@ ores = [
     (silverfish_egg, SILVERFISH_DIFF)
 ]
 
+stone_biome_floor_blocks = [stone, cobblestone, gravel]
+organic_biome_floor_blocks = [dirt, podzol, grass_block]
+biome_floor_blocks = stone_biome_floor_blocks+organic_biome_floor_blocks
 #Various Noise Functions
 def deterministic_random(x, y, z):
     seed_value = (SEED**2)*x + (SEED)*y + z
@@ -199,15 +211,12 @@ def handle_bushes(world, x, y, z):
         create_bush(world, x, y, z, log, leaves, 0, length)
 
 def handle_biomes(world, x, y, z):
-    stone_biome_blocks = [stone, cobblestone, gravel]
-    organic_biome_blocks = [dirt, podzol, grass_block]
-
     if get_block_wrapper(world, x, y, z) == stone:
         if is_floor(world, x, y, z):
             if get_biome(x, y, z) == 0:
-                place_single_block(world, perlin_choice(x, y, z, stone_biome_blocks), x, y, z)
+                place_single_block(world, perlin_choice(x, y, z, stone_biome_floor_blocks), x, y, z)
             else:
-                place_single_block(world, perlin_choice(x, y, z, organic_biome_blocks), x, y, z)
+                place_single_block(world, perlin_choice(x, y, z, organic_biome_floor_blocks), x, y, z)
                 if random.random() < FLOWER_SPAWN_CHANCE:
                     place_single_block(world, random.choice(flowers), x, y+1, z)
                 elif random.random() < GRASS_SPAWN_CHANCE:
@@ -217,7 +226,53 @@ def handle_biomes(world, x, y, z):
             if get_biome(x, y, z) == 1:
                 place_single_block(world, dirt, x, y, z)
 
+def handle_water_pools(world, x, y, z, returnBool = False):
+    '''
+    If returnBool, does not place a water pool, but rather returns whether it is a valid spot for a water pool.
+    '''
+    valid_spawn_location = is_floor(world, x, y, z) and not is_wall(world, x, y, z) and not is_ceiling(world, x, y, z)
+    valid_spawn_block = get_block_wrapper(world, x, y, z) in biome_floor_blocks+[sand]
+    water_area = perlin_probability(WATER_POOL_SPAWN_CHANCE, x, y, z)
+
+    if valid_spawn_location and water_area and valid_spawn_block:
+        if returnBool:
+            return True
+        
+        place_single_block(world, water, x, y, z)
+        if WATER_POOL_SAND_BORDER:
+            handle_water_border(world, x-1, y  , z  )
+            handle_water_border(world, x+1, y  , z  )
+            handle_water_border(world, x  , y  , z-1)
+            handle_water_border(world, x  , y  , z+1)
+            handle_water_border(world, x-1, y  , z-1)
+            handle_water_border(world, x-1, y  , z+1)
+            handle_water_border(world, x+1, y  , z-1)
+            handle_water_border(world, x-1, y  , z+1)
+            handle_water_border(world, x-1, y-1, z  )
+            handle_water_border(world, x+1, y-1, z  )
+            handle_water_border(world, x  , y-1, z-1)
+            handle_water_border(world, x  , y-1, z+1)
+            handle_water_border(world, x-1, y-1, z-1)
+            handle_water_border(world, x-1, y-1, z+1)
+            handle_water_border(world, x+1, y-1, z-1)
+            handle_water_border(world, x-1, y-1, z+1)
+    if returnBool:
+        return False
+        
+
 #Misc World Gen
+def handle_water_border(world, x, y, z):
+    not_ceiling = not is_ceiling(world, x, y, z)
+    not_water = not handle_water_pools(world, x, y, z, returnBool = True) and not get_block_wrapper(world, x, y, z) == water
+    if not_ceiling and not_water:
+        place_single_block(world, sand, x, y, z)
+        valid_sugarcane_location = get_block_wrapper(world, x, y+1, z) == air
+        if valid_sugarcane_location and random.random() < WATER_POOL_SUGARCANE_SPAWN_CHANCE:
+            height = random.randrange(1, 3)
+            for i in range(height):
+                place_single_block(world, sugarcane, x, y+i+1, z)
+            
+
 def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length):
     '''
     Takes care of placing stalagtite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
@@ -460,6 +515,8 @@ if __name__ == "__main__":
                 handle_bushes(world, x, y, z)
             if BIOMES:
                 handle_biomes(world, x, y, z)
+            if WATER_POOLS:
+                handle_water_pools(world, x, y, z)
 
     print(f"DONE in {time.time()-start}s.")
     
