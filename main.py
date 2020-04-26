@@ -14,9 +14,9 @@ from amulet_nbt import *
 import math
 import random
 import time
+import argparse
 
 SQUARE_MAX = 64
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC6"
 SEED = random.randint(0, 1000)
 
 FULL_RESET = False
@@ -466,6 +466,13 @@ def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
     create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run the DwarfCraft world generator")
+    parser.add_argument("world_path", help="Path of the world.")
+    parser.add_argument("--size", default = SQUARE_MAX, type=int, help="Size of generated area")
+    args = parser.parse_args()
+    PATH = args.world_path
+    SQUARE_MAX = args.size
+    print(SQUARE_MAX)
     program_start = time.time()
 
     subbox = SubSelectionBox(min, max)
