@@ -17,6 +17,8 @@ import time
 import argparse
 import logging
 
+VERSION = 1
+
 SQUARE_MAX = 64
 SEED = random.randint(0, 1000)
 
@@ -533,6 +535,9 @@ def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance, o
 if __name__ == "__main__":
     log = logging.getLogger("pymctranslate")
     log.setLevel(logging.ERROR)
+
+    print(f"DWARF CRAFT - VERSION {VERSION}")
+    print('"Survival Minecraft for people that hate the Sun!"')
 
     options = parser_init()
     program_start = time.time()
