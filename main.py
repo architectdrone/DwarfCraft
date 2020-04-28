@@ -15,47 +15,10 @@ import math
 import random
 import time
 import argparse
+import logging
 
 SQUARE_MAX = 64
 SEED = random.randint(0, 1000)
-
-FULL_RESET = False
-
-CAVE_DECO = True #Whether or not to decorate caves (lava pools, glowstone clusters, etc.) About 99% of processing time is spent in this step.
-
-GLOWSTONE_CLUSTERS = True #Whether glowstone clusters spawn
-GLOWSTONE_CLUSTER_SPAWN_CHANCE = 0.05 #Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.
-GLOWSTONE_CLUSTER_COMPRESSION = 0.25 #Percent of ceilings in a glowstone cluster that have a stalagtite on them.
-GLOWSTONE_CLUSTER_MAX_LENGTH = 5 #Maximum length of a stalagtite.
-
-LAVA_POOLS = True #Whether Lava Pools Spawn
-LAVA_POOL_SPAWN_CHANCE = 0.05 #Spawn chance for lava pools in the threshold
-LAVA_POOL_PUNISHMENT_FACTOR = 4 #Spawn rates are "punished" at higher altitudes. Increase this to increase the punishment factor. Conversely, you can set it 0 to do away with punishments, but, if you have fill mode on, I wouldn't reccomend that.
-LAVA_POOL_FAST = False #Use the "fast" method of generating lava pools. This prevents the dreaded "recursion limit exceeded" error.
-
-MOB_SPAWNERS = True #Whether mob spawners spawn
-MOB_SPAWNER_SPAWN_CHANCE = 0.01 #Chance of a floor block having a mob spawner. Be careful: Even 5% was too much.
-
-BUSHES = True #Whether bushes spawn.
-BUSH_MELONS = True #Whether melons grow on bushes.
-BUSH_MELON_SPAWN_CHANCE = 0.05 #Chance that a particular leaf will be a melon block.
-BUSH_SPAWN_CHANCE = 0.5 #Chance that any edge will be in a bush cluster.
-BUSH_COMPRESSION = 0.01 #Chance that an edge in a bush cluster will have a bush
-BUSH_MIN_SIZE = 5
-BUSH_MAX_SIZE = 10
-
-BIOMES = True #Whether biome decoration occurs.
-FLOWER_SPAWN_CHANCE = 0.05
-GRASS_SPAWN_CHANCE = 0.1
-
-WATER_POOLS = True
-WATER_POOL_SAND_BORDER = True
-WATER_POOL_SPAWN_CHANCE = 0.25
-WATER_POOL_SUGARCANE_SPAWN_CHANCE = 0.25
-
-#Ore Spawning Numbers
-ORE_POCKETS_PER_CHUNK = 15 #Approximately how many ore pockets should generate in a 16x16x16 area.
-ORE_POCKET_SIZE = 5 #Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.
 
 #Ore difficulties. Higher numbers mean they tend to spawn in the deeper parts of the map.
 COAL_DIFF = 0.1
@@ -65,8 +28,76 @@ EMERALD_DIFF = 0.7
 DIAMOND_DIFF = 0.9
 SILVERFISH_DIFF = 0.8
 
-min = (0, 0, 0)
-max = (SQUARE_MAX, SQUARE_MAX, SQUARE_MAX)
+def parser_init():
+    global SQUARE_MAX
+    parser = argparse.ArgumentParser(description="Run the DwarfCraft world generator")
+    parser.add_argument("world_path", help="Path of the world.")
+    parser.add_argument("size", type=int, help="Size of generated area")
+    parser.add_argument("--full_reset", action='store_true', help = "Delete everything from bedrock to build limit, in the specified region. For annoying things outside of SIZE's y range.")
+    parser.add_argument("--skip_cave_deco", action='store_true', help="Skip cave decoration. Good for if you happen to be pressed for time!")
+    parser.add_argument("--glowstone_clusters", type=bool, default=True, help="Whether glowstone clusters spawn")
+    parser.add_argument("--glowstone_cluster_spawn_chance", type=float, default=0.05, help="Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.")
+    parser.add_argument("--glowstone_cluster_compression", type=float, default=0.25, help="Percent of ceilings in a glowstone cluster that have a stalagtite on them.")
+    parser.add_argument("--glowstone_cluster_max_length", type=int, default=5, help="Maximum length of a stalagtite.")
+    parser.add_argument("--lava_pools", type=bool, default=True, help="Whether Lava Pools Spawn")
+    parser.add_argument("--lava_pool_spawn_chance", type=float, default=0.99, help="Spawn chance for lava pools in the threshold")
+    parser.add_argument("--lava_pool_punishment_factor", type=int, default=4, help="Spawn rates are 'punished' at higher altitudes. Increase this to increase the punishment factor. Conversely, you can set it 0 to do away with punishments, but, if you have fill mode on, I wouldn't reccomend that.")
+    parser.add_argument("--lava_pool_fill", type=bool, default=False, help="Use the 'fill' method of generating lava pools. This prevents the dreaded 'recursion limit exceeded' error.")
+    parser.add_argument("--mob_spawners", type=bool, default=True, help="Whether mob spawners spawn")
+    parser.add_argument("--mob_spawner_spawn_chance", type=float, default=0.005, help="Chance of a floor block having a mob spawner. Be careful: Even 5%% was too much.")
+    parser.add_argument("--bushes", type=bool, default=True, help="Whether bushes spawn.")
+    parser.add_argument("--bush_melons", type=bool, default=True, help="Whether melons grow on bushes.")
+    parser.add_argument("--bush_melon_spawn_chance", type=float, default=0.05, help="Chance that a particular leaf will be a melon block.")
+    parser.add_argument("--bush_spawn_chance", type=float, default=0.10, help="Chance that any edge will be in a bush cluster.")
+    parser.add_argument("--bush_compression", type=float, default=0.01, help="Chance that an edge in a bush cluster will have a bush")
+    parser.add_argument("--bush_min_size", type=int, default=5, help="")
+    parser.add_argument("--bush_max_size", type=int, default=10, help="")
+    parser.add_argument("--biomes", type=bool, default=True, help="Whether biome decoration occurs.")
+    parser.add_argument("--biome_flower_spawn_chance", type=float, default=0.05, help="")
+    parser.add_argument("--biome_grass_spawn_chance", type=float, default=0.1, help="")
+    parser.add_argument("--water_pools", type=bool, default=True, help="")
+    parser.add_argument("--water_pool_sand_border", type=bool, default=True, help="")
+    parser.add_argument("--water_pool_spawn_chance", type=float, default=0.05, help="")
+    parser.add_argument("--water_pool_sugarcane_spawn_chance", type=float, default=0.25, help="")
+    parser.add_argument("--ore_pockets_per_chunk", type=int, default=15, help="Approximately how many ore pockets should generate in a 16x16x16 area.")
+    parser.add_argument("--ore_pocket_size", type=int, default=5, help="Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.")
+
+    args = parser.parse_args()
+
+    SQUARE_MAX = args.size
+
+    print(f"PATH = {args.world_path}")
+    print(f"FULL RESET = {args.full_reset}")
+    print(f"SQUARE_MAX = {args.size}")
+    print(f"CAVE_DECO = {not args.skip_cave_deco}")
+    print(f"    GLOWSTONE_CLUSTERS = {args.glowstone_clusters}")
+    print(f"        GLOWSTONE_CLUSTER_SPAWN_CHANCE = {args.glowstone_cluster_spawn_chance}")
+    print(f"        GLOWSTONE_CLUSTER_COMPRESSION = {args.glowstone_cluster_compression}")  
+    print(f"        GLOWSTONE_CLUSTER_MAX_LENGTH = {args.glowstone_cluster_max_length}")    
+    print(f"    LAVA_POOLS = {args.lava_pools}")
+    print(f"        LAVA_POOL_SPAWN_CHANCE = {args.lava_pool_spawn_chance}")
+    print(f"        LAVA_POOL_PUNISHMENT_FACTOR = {args.lava_pool_punishment_factor}")
+    print(f"        LAVA_POOL_FILL = {args.lava_pool_fill}")
+    print(f"    MOB_SPAWNERS = {args.mob_spawners}")
+    print(f"        MOB_SPAWNER_SPAWN_CHANCE = {args.mob_spawner_spawn_chance}")
+    print(f"    BUSHES = {args.bushes}")
+    print(f"        BUSH_MELONS = {args.bush_melons}")
+    print(f"        BUSH_MELON_SPAWN_CHANCE = {args.bush_melon_spawn_chance}")
+    print(f"        BUSH_SPAWN_CHANCE = {args.bush_spawn_chance}")
+    print(f"        BUSH_COMPRESSION = {args.bush_compression}")
+    print(f"        BUSH_MIN_SIZE = {args.bush_min_size}")
+    print(f"        BUSH_MAX_SIZE = {args.bush_max_size}")
+    print(f"    BIOMES = {args.biomes}")
+    print(f"        BIOME_FLOWER_SPAWN_CHANCE = {args.biome_flower_spawn_chance}")
+    print(f"        BIOME_GRASS_SPAWN_CHANCE = {args.biome_grass_spawn_chance}")
+    print(f"    WATER_POOLS = {args.water_pools}")
+    print(f"        WATER_POOL_SAND_BORDER = {args.water_pool_sand_border}")
+    print(f"        WATER_POOL_SPAWN_CHANCE = {args.water_pool_spawn_chance}")
+    print(f"        WATER_POOL_SUGARCANE_SPAWN_CHANCE = {args.water_pool_sugarcane_spawn_chance}")
+    print(f"ORE_POCKETS_PER_CHUNK = {args.ore_pockets_per_chunk}")
+    print(f"ORE_POCKET_SIZE = {args.ore_pocket_size}")
+
+    return args
 
 #Blocks
 air = blockstate_to_block("universal_minecraft:air")
@@ -178,116 +209,116 @@ def choose_random_weighted(weight, spread, list):
     return list[index]
 
 #Cave Decoration
-def handle_lava_pools(world, x, y, z):
+def handle_lava_pools(world, x, y, z, options):
     floor = is_floor(world, x, y, z)
-    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**LAVA_POOL_PUNISHMENT_FACTOR #We want to punish the spawn chance at high altitudes. This equation does exactly that.
-    spawn = perlin_probability(scaling_factor*LAVA_POOL_SPAWN_CHANCE, x, y, z, seed = SEED*5)
+    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**options.lava_pool_punishment_factor #We want to punish the spawn chance at high altitudes. This equation does exactly that.
+    spawn = perlin_probability(scaling_factor*options.lava_pool_spawn_chance, x, y, z, seed = SEED*5)
 
     if floor and spawn:
-        if not LAVA_POOL_FAST:
+        if options.lava_pool_fill:
             place_single_block(world, air, x, y, z)
             return scanline_pool_fill(world, x, y, z, lava)
         else:
-            place_single_block(world, lava, x, y, z)
-            return 1
+            if not is_wall(world, x, y, z):
+                place_single_block(world, lava, x, y, z)
+                return 1
     return 0
 
-def handle_glowstone_clusters(world, x, y, z):
-    handle_stalagtite_clusters(world, x, y, z, glowstone, GLOWSTONE_CLUSTER_SPAWN_CHANCE, GLOWSTONE_CLUSTER_COMPRESSION, GLOWSTONE_CLUSTER_MAX_LENGTH)
+def handle_glowstone_clusters(world, x, y, z, options):
+    handle_stalagtite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length)
 
-def handle_mob_spawners(world, x, y, z, spawn_chance):
-    if random.random() < spawn_chance and is_floor(world, x, y, z) and y+1 < SQUARE_MAX and get_block_wrapper(world, x, y, z) == stone:
+def handle_mob_spawners(world, x, y, z, options):
+    if random.random() < options.mob_spawner_spawn_chance and is_floor(world, x, y, z) and y+1 < options.size and get_block_wrapper(world, x, y, z) == stone:
         the_mob = get_mob(y)
         spawner(world, x, y+1, z, the_mob)
 
-def handle_bushes(world, x, y, z):
-    is_bush_cluster = perlin_probability(BUSH_SPAWN_CHANCE, x, y, z, seed = SEED*3)
-    is_bush_spawn_location = random.random() < BUSH_COMPRESSION
+def handle_bushes(world, x, y, z, options):
+    is_bush_cluster = perlin_probability(options.bush_spawn_chance, x, y, z, seed = SEED*3)
+    is_bush_spawn_location = random.random() < options.bush_compression
 
     if is_bush_cluster and is_bush_spawn_location and get_block_wrapper(world, x, y, z) == stone:
         log = oak_log
         leaves = oak_leaves
-        length = random.randrange(BUSH_MIN_SIZE, BUSH_MAX_SIZE)
-        create_bush(world, x, y, z, log, leaves, 0, length)
+        length = random.randrange(options.bush_min_size, options.bush_max_size)
+        create_bush(world, x, y, z, log, leaves, 0, length, options)
 
-def handle_biomes(world, x, y, z):
+def handle_biomes(world, x, y, z, options):
     if get_block_wrapper(world, x, y, z) == stone:
         if is_floor(world, x, y, z):
             if get_biome(x, y, z) == 0:
                 place_single_block(world, perlin_choice(x, y, z, stone_biome_floor_blocks), x, y, z)
             else:
                 place_single_block(world, perlin_choice(x, y, z, organic_biome_floor_blocks), x, y, z)
-                if random.random() < FLOWER_SPAWN_CHANCE:
+                if random.random() < options.biome_flower_spawn_chance:
                     place_single_block(world, random.choice(flowers), x, y+1, z)
-                elif random.random() < GRASS_SPAWN_CHANCE:
+                elif random.random() < options.biome_grass_spawn_chance:
                     place_single_block(world, grass, x, y+1, z)
             
         else:
             if get_biome(x, y, z) == 1:
                 place_single_block(world, dirt, x, y, z)
 
-def handle_water_pools(world, x, y, z, returnBool = False):
+def handle_water_pools(world, x, y, z, options, returnBool = False):
     '''
     If returnBool, does not place a water pool, but rather returns whether it is a valid spot for a water pool.
     '''
     valid_spawn_location = is_floor(world, x, y, z) and not is_wall(world, x, y, z) and not is_ceiling(world, x, y, z)
     valid_spawn_block = get_block_wrapper(world, x, y, z) in biome_floor_blocks+[sand]
-    water_area = perlin_probability(WATER_POOL_SPAWN_CHANCE, x, y, z)
+    water_area = perlin_probability(options.water_pool_spawn_chance, x, y, z)
 
     if valid_spawn_location and water_area and valid_spawn_block:
         if returnBool:
             return True
         
         place_single_block(world, water, x, y, z)
-        if WATER_POOL_SAND_BORDER:
-            handle_water_border(world, x-1, y  , z  )
-            handle_water_border(world, x+1, y  , z  )
-            handle_water_border(world, x  , y  , z-1)
-            handle_water_border(world, x  , y  , z+1)
-            handle_water_border(world, x-1, y  , z-1)
-            handle_water_border(world, x-1, y  , z+1)
-            handle_water_border(world, x+1, y  , z-1)
-            handle_water_border(world, x-1, y  , z+1)
-            handle_water_border(world, x-1, y-1, z  )
-            handle_water_border(world, x+1, y-1, z  )
-            handle_water_border(world, x  , y-1, z-1)
-            handle_water_border(world, x  , y-1, z+1)
-            handle_water_border(world, x-1, y-1, z-1)
-            handle_water_border(world, x-1, y-1, z+1)
-            handle_water_border(world, x+1, y-1, z-1)
-            handle_water_border(world, x-1, y-1, z+1)
+        if options.water_pool_sand_border:
+            handle_water_border(world, x-1, y  , z  ,options)
+            handle_water_border(world, x+1, y  , z  ,options)
+            handle_water_border(world, x  , y  , z-1,options)
+            handle_water_border(world, x  , y  , z+1,options)
+            handle_water_border(world, x-1, y  , z-1,options)
+            handle_water_border(world, x-1, y  , z+1,options)
+            handle_water_border(world, x+1, y  , z-1,options)
+            handle_water_border(world, x-1, y  , z+1,options)
+            handle_water_border(world, x-1, y-1, z  ,options)
+            handle_water_border(world, x+1, y-1, z  ,options)
+            handle_water_border(world, x  , y-1, z-1,options)
+            handle_water_border(world, x  , y-1, z+1,options)
+            handle_water_border(world, x-1, y-1, z-1,options)
+            handle_water_border(world, x-1, y-1, z+1,options)
+            handle_water_border(world, x+1, y-1, z-1,options)
+            handle_water_border(world, x-1, y-1, z+1,options)
     if returnBool:
         return False
         
 
 #Misc World Gen
-def handle_water_border(world, x, y, z):
+def handle_water_border(world, x, y, z, options):
     not_ceiling = not is_ceiling(world, x, y, z)
-    not_water = not handle_water_pools(world, x, y, z, returnBool = True) and not get_block_wrapper(world, x, y, z) == water
+    not_water = not handle_water_pools(world, x, y, z, options, returnBool = True) and not get_block_wrapper(world, x, y, z) == water
     if not_ceiling and not_water:
         place_single_block(world, sand, x, y, z)
         valid_sugarcane_location = get_block_wrapper(world, x, y+1, z) == air
-        if valid_sugarcane_location and random.random() < WATER_POOL_SUGARCANE_SPAWN_CHANCE:
+        if valid_sugarcane_location and random.random() < options.water_pool_sugarcane_spawn_chance:
             height = random.randrange(1, 3)
             for i in range(height):
                 place_single_block(world, sugarcane, x, y+i+1, z)
             
-
-def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length):
+def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length, seed = SEED):
     '''
     Takes care of placing stalagtite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
     '''
     global air
     to_return = 0
     if is_ceiling(world, x, y, z, air):
-        if perlin_probability(GLOWSTONE_CLUSTER_SPAWN_CHANCE, x, y, z):
-            length = random.randint(1, GLOWSTONE_CLUSTER_MAX_LENGTH)
+        if perlin_probability(spawn_chance, x, y, z, seed = seed):
+            length = random.randint(1, max_length)
             to_return = 1
-            if random.random() < GLOWSTONE_CLUSTER_COMPRESSION:
+            if random.random() < compression:
                 grow_stalagtite(world, x, y-1, z, block, length)
     return to_return
 
-def get_proper_ore(y):
+def get_proper_ore(y, options):
     '''
     We choose a random ore, and then adjust the size based on it's depth. (level of difficulty)
 
@@ -297,16 +328,16 @@ def get_proper_ore(y):
     ore, diff = random.choice(ores)
     ideal_diff = 1-map(y, 0, SQUARE_MAX, 0, 1)
     if ideal_diff > diff:
-        size = ORE_POCKET_SIZE*((1+abs(ideal_diff-diff))**2)
+        size = options.ore_pocket_size*((1+abs(ideal_diff-diff))**2)
     else:
-        size = ORE_POCKET_SIZE*(1-abs(ideal_diff-diff))
+        size = options.ore_pocket_size*(1-abs(ideal_diff-diff))
     return ore, int(size)
     
-def place_ore(world, x, y, z):
+def place_ore(world, x, y, z, options):
     '''
     We place a random ore vein centered at (x, y, z) 
     '''
-    ore, size = get_proper_ore(y)
+    ore, size = get_proper_ore(y, options)
     if size == 0:
         return
     elif size == 1:
@@ -438,10 +469,10 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
             else:
                 z+=1
 
-def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
+def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance, options):
     if (get_block_wrapper(world, x, y, z) != air and current_distance != 0) or current_distance >= maximum_distance:
         return
-    if (x<0) or (x>SQUARE_MAX) or (y<0) or (y>SQUARE_MAX) or (z<0) or (z>SQUARE_MAX):
+    if (x<0) or (x>options.size) or (y<0) or (y>options.size) or (z<0) or (z>options.size):
         return
 
     normalized_distance = map(current_distance, 0, maximum_distance, 0, 1)
@@ -450,7 +481,7 @@ def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
         return
 
     if random.random() < normalized_distance:
-        if BUSH_MELONS and random.random() < BUSH_MELON_SPAWN_CHANCE:
+        if options.bush_melons and random.random() < options.bush_melon_spawn_chance:
             block = melon
         else:
             block = leaf
@@ -458,32 +489,32 @@ def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance):
         block = log
     
     place_single_block(world, block, x, y, z)
-    create_bush(world, x-1, y, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x+1, y, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y-1, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance)
-    create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance)
+    create_bush(world, x-1, y, z, log, leaf, current_distance+1, maximum_distance, options)
+    create_bush(world, x+1, y, z, log, leaf, current_distance+1, maximum_distance, options)
+    create_bush(world, x, y-1, z, log, leaf, current_distance+1, maximum_distance, options)
+    create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance, options)
+    create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance, options)
+    create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance, options)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the DwarfCraft world generator")
-    parser.add_argument("world_path", help="Path of the world.")
-    parser.add_argument("--size", default = SQUARE_MAX, type=int, help="Size of generated area")
-    args = parser.parse_args()
-    PATH = args.world_path
-    SQUARE_MAX = args.size
-    print(SQUARE_MAX)
+    log = logging.getLogger("pymctranslate")
+    log.setLevel(logging.ERROR)
+
+    options = parser_init()
     program_start = time.time()
+
+    min = (0, 0, 0)
+    max = (options.size, options.size, options.size)
 
     subbox = SubSelectionBox(min, max)
     target_area = Selection([subbox])
 
     start = time.time()
     print("LOADING WORLD...")
-    world = World(PATH, world_interface.load_format(PATH))
+    world = World(options.world_path, world_interface.load_format(options.world_path))
     print(f"DONE in {time.time()-start}s")
 
-    if FULL_RESET:
+    if options.full_reset:
         big_max = (SQUARE_MAX, 255, SQUARE_MAX)
         big_target_area = Selection([SubSelectionBox(min, big_max)])
         fill.fill(world, 0, big_target_area, {'fill_block': air})
@@ -495,35 +526,35 @@ if __name__ == "__main__":
 
     start = time.time()
     print("OREIFICATION...")
-    ore_pockets = int(((SQUARE_MAX**3)/(16**3))*ORE_POCKETS_PER_CHUNK)
+    ore_pockets = int(((options.size**3)/(16**3))*options.ore_pockets_per_chunk)
     for i in range(ore_pockets):
-        x = random.randrange(0, SQUARE_MAX)
-        y = random.randrange(0, SQUARE_MAX)
-        z = random.randrange(0, SQUARE_MAX)
-        place_ore(world, x, y, z)
+        x = random.randrange(0, options.size)
+        y = random.randrange(0, options.size)
+        z = random.randrange(0, options.size)
+        place_ore(world, x, y, z, options)
     print(f"DONE in {time.time()-start}s")
 
     start = time.time()
     print("CAVIFICATION...")
-    populate(world, target_area, air, fill_cube_size = 32)
+    populate(world, target_area, air, fill_cube_size = 64)
     print(f"DONE in {time.time()-start}s")
 
     start = time.time()
     print("DECORATING CAVES...")
-    if CAVE_DECO:
+    if not options.skip_cave_deco:
         for x, y, z in get_edges(world, subbox):
-            if GLOWSTONE_CLUSTERS:
-                handle_glowstone_clusters(world, x, y, z)
-            if LAVA_POOLS:
-                handle_lava_pools(world, x, y, z)
-            if MOB_SPAWNERS:
-                handle_mob_spawners(world, x, y, z, MOB_SPAWNER_SPAWN_CHANCE)
-            if BUSHES:
-                handle_bushes(world, x, y, z)
-            if BIOMES:
-                handle_biomes(world, x, y, z)
-            if WATER_POOLS:
-                handle_water_pools(world, x, y, z)
+            if options.glowstone_clusters:
+                handle_glowstone_clusters(world, x, y, z, options)
+            if options.lava_pools:
+                handle_lava_pools(world, x, y, z, options)
+            if options.mob_spawners:
+                handle_mob_spawners(world, x, y, z, options)
+            if options.bushes:
+                handle_bushes(world, x, y, z, options)
+            if options.biomes:
+                handle_biomes(world, x, y, z, options)
+            if options.water_pools:
+                handle_water_pools(world, x, y, z, options)
 
     print(f"DONE in {time.time()-start}s.")
     
@@ -531,3 +562,5 @@ if __name__ == "__main__":
 
     world.save()
     world.close()
+
+    print(f"Saved {PATH}")
