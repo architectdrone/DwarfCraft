@@ -214,6 +214,9 @@ def perlin_distance(x, y, z, seed = SEED):
     return abs(perlin(x, y, z, octaves=1, base = seed)-0.5)
 
 def perlin_probability(percent_chance, x, y, z, seed = SEED):
+    '''
+    See README for a description of what this function does, and why it is needed.
+    '''
     distance = perlin_distance(x, y, z, seed = SEED)
     success_distance = clamp(probability_to_distance(percent_chance), 0, 1)
     return distance < success_distance
