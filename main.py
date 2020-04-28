@@ -34,8 +34,10 @@ def parser_init():
     parser.add_argument("world_path", help="Path of the world.")
     parser.add_argument("size", type=int, help="Size of generated area")
     parser.add_argument("--full_reset", action='store_true', help = "Delete everything from bedrock to build limit, in the specified region. For annoying things outside of SIZE's y range.")
+    parser.add_argument("--skip-ores", action='store_true', help="Skip placing ore.")
     parser.add_argument("--ore_pockets_per_chunk", type=int, default=15, help="Approximately how many ore pockets should generate in a 16x16x16 area.")
     parser.add_argument("--ore_pocket_size", type=int, default=5, help="Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.")
+    parser.add_argument("--skip_caves", action="store_true", help="Skip cave generation.")
     parser.add_argument("--cave_fill_cube", type=int, default=32, metavar = "N", help="One cave should be located in each NxNxN area.")
     parser.add_argument("--cave_length", type=int, default=1000, help="The length of a cave.")
     parser.add_argument("--cave_max_size", type=int, default=10, help="Maximum size of a cave.")
@@ -74,10 +76,10 @@ def parser_init():
     print(f"PATH = {args.world_path}")
     print(f"FULL RESET = {args.full_reset}")
     print(f"SQUARE_MAX = {args.size}")
-    print(f"ORES")
+    print(f"ORES = {not args.skip_ores}")
     print(f"    ORE_POCKETS_PER_CHUNK = {args.ore_pockets_per_chunk}")
     print(f"    ORE_POCKET_SIZE = {args.ore_pocket_size}")
-    print(F"CAVES")
+    print(F"CAVES = {not args.skip_caves}")
     print(f"    CAVE_LENGTH = {args.cave_length}")
     print(f"    CAVE_MIN_SIZE = {args.cave_min_size}")
     print(f"    CAVE_MAX_SIZE = {args.cave_max_size}")
@@ -536,24 +538,26 @@ if __name__ == "__main__":
     fill.fill(world, 0, target_area, {'fill_block': stone})
     print(f"DONE in {time.time()-start}s")
 
-    start = time.time()
-    print("OREIFICATION...")
-    ore_pockets = int(((options.size**3)/(16**3))*options.ore_pockets_per_chunk)
-    for i in range(ore_pockets):
-        x = random.randrange(0, options.size)
-        y = random.randrange(0, options.size)
-        z = random.randrange(0, options.size)
-        place_ore(world, x, y, z, options)
-    print(f"DONE in {time.time()-start}s")
+    if not options.skip_ores:
+        start = time.time()
+        print("OREIFICATION...")
+        ore_pockets = int(((options.size**3)/(16**3))*options.ore_pockets_per_chunk)
+        for i in range(ore_pockets):
+            x = random.randrange(0, options.size)
+            y = random.randrange(0, options.size)
+            z = random.randrange(0, options.size)
+            place_ore(world, x, y, z, options)
+        print(f"DONE in {time.time()-start}s")
 
-    start = time.time()
-    print("CAVIFICATION...")
-    populate(world, target_area, air, fill_cube_size = options.cave_fill_cube, iterations = options.cave_length, min_width = options.cave_min_width, max_width = options.cave_max_width)
-    print(f"DONE in {time.time()-start}s")
+    if not options.skip_caves:
+        start = time.time()
+        print("CAVIFICATION...")
+        populate(world, target_area, air, fill_cube_size = options.cave_fill_cube, iterations = options.cave_length, min_width = options.cave_min_size, max_width = options.cave_max_size)
+        print(f"DONE in {time.time()-start}s")
 
-    start = time.time()
-    print("DECORATING CAVES...")
     if not options.skip_cave_deco:
+        start = time.time()
+        print("DECORATING CAVES...")
         for x, y, z in get_edges(world, subbox):
             if options.glowstone_clusters:
                 handle_glowstone_clusters(world, x, y, z, options)
@@ -568,11 +572,9 @@ if __name__ == "__main__":
             if options.water_pools:
                 handle_water_pools(world, x, y, z, options)
 
-    print(f"DONE in {time.time()-start}s.")
+        print(f"DONE in {time.time()-start}s.")
     
     print(f"ALL DONE in {time.time()-program_start}")
 
     world.save()
     world.close()
-
-    print(f"Saved {PATH}")
