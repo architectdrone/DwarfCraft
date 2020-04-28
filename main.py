@@ -34,6 +34,12 @@ def parser_init():
     parser.add_argument("world_path", help="Path of the world.")
     parser.add_argument("size", type=int, help="Size of generated area")
     parser.add_argument("--full_reset", action='store_true', help = "Delete everything from bedrock to build limit, in the specified region. For annoying things outside of SIZE's y range.")
+    parser.add_argument("--ore_pockets_per_chunk", type=int, default=15, help="Approximately how many ore pockets should generate in a 16x16x16 area.")
+    parser.add_argument("--ore_pocket_size", type=int, default=5, help="Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.")
+    parser.add_argument("--cave_fill_cube", type=int, default=32, metavar = "N", help="One cave should be located in each NxNxN area.")
+    parser.add_argument("--cave_length", type=int, default=1000, help="The length of a cave.")
+    parser.add_argument("--cave_max_size", type=int, default=10, help="Maximum size of a cave.")
+    parser.add_argument("--cave_min_size", type=int, default=2, help="Minimum size of a cave.")
     parser.add_argument("--skip_cave_deco", action='store_true', help="Skip cave decoration. Good for if you happen to be pressed for time!")
     parser.add_argument("--glowstone_clusters", type=bool, default=True, help="Whether glowstone clusters spawn")
     parser.add_argument("--glowstone_cluster_spawn_chance", type=float, default=0.05, help="Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.")
@@ -55,20 +61,27 @@ def parser_init():
     parser.add_argument("--biomes", type=bool, default=True, help="Whether biome decoration occurs.")
     parser.add_argument("--biome_flower_spawn_chance", type=float, default=0.05, help="")
     parser.add_argument("--biome_grass_spawn_chance", type=float, default=0.1, help="")
-    parser.add_argument("--water_pools", type=bool, default=True, help="")
+    parser.add_argument("--water_pools", type=bool, default=True, help="Whether water pools spawn")
     parser.add_argument("--water_pool_sand_border", type=bool, default=True, help="")
     parser.add_argument("--water_pool_spawn_chance", type=float, default=0.05, help="")
     parser.add_argument("--water_pool_sugarcane_spawn_chance", type=float, default=0.25, help="")
-    parser.add_argument("--ore_pockets_per_chunk", type=int, default=15, help="Approximately how many ore pockets should generate in a 16x16x16 area.")
-    parser.add_argument("--ore_pocket_size", type=int, default=5, help="Base ore pocket size. This is the size of an ore pocket at the exact diff it is specified at.")
-
+    
     args = parser.parse_args()
 
     SQUARE_MAX = args.size
 
+    print("OPTIONS-----------------------------------------")
     print(f"PATH = {args.world_path}")
     print(f"FULL RESET = {args.full_reset}")
     print(f"SQUARE_MAX = {args.size}")
+    print(f"ORES")
+    print(f"    ORE_POCKETS_PER_CHUNK = {args.ore_pockets_per_chunk}")
+    print(f"    ORE_POCKET_SIZE = {args.ore_pocket_size}")
+    print(F"CAVES")
+    print(f"    CAVE_LENGTH = {args.cave_length}")
+    print(f"    CAVE_MIN_SIZE = {args.cave_min_size}")
+    print(f"    CAVE_MAX_SIZE = {args.cave_max_size}")
+    print(f"    CAVE_FILL_CUBE = {args.cave_fill_cube}")
     print(f"CAVE_DECO = {not args.skip_cave_deco}")
     print(f"    GLOWSTONE_CLUSTERS = {args.glowstone_clusters}")
     print(f"        GLOWSTONE_CLUSTER_SPAWN_CHANCE = {args.glowstone_cluster_spawn_chance}")
@@ -94,8 +107,7 @@ def parser_init():
     print(f"        WATER_POOL_SAND_BORDER = {args.water_pool_sand_border}")
     print(f"        WATER_POOL_SPAWN_CHANCE = {args.water_pool_spawn_chance}")
     print(f"        WATER_POOL_SUGARCANE_SPAWN_CHANCE = {args.water_pool_sugarcane_spawn_chance}")
-    print(f"ORE_POCKETS_PER_CHUNK = {args.ore_pockets_per_chunk}")
-    print(f"ORE_POCKET_SIZE = {args.ore_pocket_size}")
+    print("------------------------------------------------")
 
     return args
 
@@ -536,7 +548,7 @@ if __name__ == "__main__":
 
     start = time.time()
     print("CAVIFICATION...")
-    populate(world, target_area, air, fill_cube_size = 64)
+    populate(world, target_area, air, fill_cube_size = options.cave_fill_cube, iterations = options.cave_length, min_width = options.cave_min_width, max_width = options.cave_max_width)
     print(f"DONE in {time.time()-start}s")
 
     start = time.time()
