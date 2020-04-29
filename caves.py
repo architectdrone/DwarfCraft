@@ -10,8 +10,6 @@ from amulet.api.world import *
 from noise import pnoise3, pnoise1
 import random
 import math
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\FUN"
-
 
 def cave_section(center, width):
     #Right now, just a cube
@@ -146,27 +144,3 @@ def populate(world, region, block, fill_cube_size = 32, min_width = 2, max_width
                 max_width_specific = random.randrange(min_width_specific, max_width)
                 #print(f"({x_i}, {y_i}, {z_i}) MAKING A CAVE AT {start}. WIDTH: {min_width_specific}-{max_width_specific}. MAX_LENGTH: {iterations}")
                 make_cave(world,region,start,iterations, min_width_specific, max_width_specific, block)
-
-if __name__ == "__main__":
-    #Create world object
-    new_horizons = world_interface.load_format(PATH)
-    print(f"NAME: {new_horizons.world_name}")
-    print(f"VERSION: {new_horizons.game_version_string}")
-    world = World(PATH, new_horizons)
-
-    stone = blockstate_to_block("stone")
-    
-
-    #Fill area with stone
-    print("STONIFICATION...")
-    min_coord = (0, 0, 0)
-    max_coord = (32, 32, 32)
-    target_area = Selection([SubSelectionBox(min_coord, max_coord)])
-    fill.fill(world, 0, target_area, {'fill_block': stone})
-
-    print("CAVIFICATION...")
-    air = blockstate_to_block("air")
-    populate(world, target_area, air, fill_cube_size = 16)
-
-    world.save()
-    world.close()
