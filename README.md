@@ -26,7 +26,7 @@ Then, run the following command:
 
 ### Where can I find example saves, if I don't want to run DwarfCraft?
 
-Example saves can be found in releases.
+Example saves can be found in [releases](https://github.com/architectdrone/DwarfCraft/releases).
 
 ### What if I want to run DwarfCraft, but I don't want to download all that stuff?
 
