@@ -12,7 +12,7 @@ This is also, to the very best of my knowledge, the first project to use the Amu
 
 ### How do I run DwarfCraft?
 
-Before running DwarfCraft, you need to have python 3.6+ installed. You also need the following python modules:
+Currently, the only way to run DwarfCraft is from source. Before running DwarfCraft, you need to have python 3.6+ installed. You also need the following python modules:
 
 - Amulet Core
 - Amulet NBT
@@ -22,9 +22,13 @@ Then, run the following command:
 
 `python main.py <path to world> <size>`
 
-### What if I want to play DwarfCraft, but I don't want to download all that stuff?
+### Where can I find example saves, if I don't want to run DwarfCraft?
 
-I'm looking into the best way to host pre-generated DwarfCraft files. Stay tuned!
+Example saves can be found in releases.
+
+### What if I want to run DwarfCraft, but I don't want to download all that stuff?
+
+I am working on creating an exe for DwarfCraft. As it turns out, this is fairly difficult.
 
 ### I am familiar with the Amulet API... why did you do <dumb thing\> when you could do <smart thing\>?
 
