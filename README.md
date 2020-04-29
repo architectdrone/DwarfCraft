@@ -6,9 +6,7 @@ This is also, to the very best of my knowledge, the first project to use the Amu
 
 ## Pictures
 
-![Cave 1](https://imgur.com/ZmI0x9N)
-
-![Cave 2](https://imgur.com/2NSOSV2)
+![Cave 1](media/2020-04-29_12.34.31.png)
 
 [Full Album](https://imgur.com/a/o8WgLtD)
 
