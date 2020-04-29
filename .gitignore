@@ -1,0 +1,7 @@
+logs/
+world_temp/
+noise_test.py
+*.pyc
+results.csv
+commands.txt
+__pycache__
