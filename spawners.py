@@ -7,8 +7,6 @@ from amulet_nbt import *
 from amulet import world_interface
 from amulet.api.world import *
 
-PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\EPIC6"
-
 def spawner(world, x, y, z, mob):
     '''
     Creates a spawner at (x, y, z), makes it spawn mob.
@@ -237,29 +235,3 @@ bad_omen=31
 hero_of_the_village=32
 
 mob_buffs = [speed, strength, regeneration, resistance, invisibility]
-
-if __name__ == "__main__":
-    world = World(PATH, world_interface.load_format(PATH))
-    
-    # test_chunk = world.get_chunk(0,0)
-    # for i in test_chunk.block_entities:
-    #     print(i)
-
-    epic_zombie = {
-        'id': "minecraft:zombie",
-        'HandItems':[{'Count':Byte(1),'id':'minecraft:iron_sword'},{'Count':Byte(1),'id':'minecraft:iron_sword'}],
-        'CustomName': "\"Jerome\""
-    }
-
-    my_mob = Mob("minecraft:zombie")
-    my_mob.right_hand("minecraft:iron_sword", drop_chance = 1.0)
-    my_mob.left_hand("minecraft:shield")
-    my_mob.helmet("minecraft:carved_pumpkin")
-    my_mob.chestplate("minecraft:diamond_chestplate", drop_chance = 1.0)
-    my_mob.leggings("minecraft:diamond_leggings")
-    my_mob.effect(24)
-    my_mob.name("\"NO HIT ME!\"")
-    print(my_mob.mob_dict)
-    spawner(world, 0, 4, 0,my_mob.mob_dict)
-    world.save()
-    world.close()
