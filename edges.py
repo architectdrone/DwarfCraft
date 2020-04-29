@@ -76,34 +76,3 @@ def get_edges(world, region, ambient_block = air):
             edge = is_edge(world, x, y, z, ambient_block)
         if edge:
             yield (x, y, z)    
-
-if __name__ == "__main__":
-    PATH = "C:\\Users\\Owen Mellema\\AppData\\Roaming\\.minecraft\\saves\\FUN"
-    new_horizons = world_interface.load_format(PATH)
-    print(f"NAME: {new_horizons.world_name}")
-    print(f"VERSION: {new_horizons.game_version_string}")
-    world = World(PATH, new_horizons)
-
-    region_lo = (0, 0, 0)
-    region_hi = (32, 32, 32)
-    region = SubSelectionBox(region_lo, region_hi)
-
-    air = blockstate_to_block("universal_minecraft:air")
-    dirt = blockstate_to_block("universal_minecraft:dirt")
-    glowstone = blockstate_to_block("universal_minecraft:glowstone")
-    granite = blockstate_to_block("universal_minecraft:granite")
-
-    ceiling = glowstone
-    wall = granite
-    floor = dirt
-    for i in get_edges(world, region, ambient_block=air):
-        x, y, z = i
-        if (is_wall(world, x, y, z, air)):
-            fill_block = wall
-        elif (is_ceiling(world, x, y, z, air)):
-            fill_block = ceiling
-        else:
-            fill_block = floor
-        fill.fill(world, 0, get_single_block(x,y,z), {'fill_block':fill_block})
-    world.save()
-    world.close()
