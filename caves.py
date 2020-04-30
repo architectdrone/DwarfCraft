@@ -23,7 +23,7 @@ def cave_section(center, width):
     min = (l_x, l_y, l_z)
     max = (l_x+width, l_y+width, l_z+width)
 
-    return Selection([SubSelectionBox(min, max)]), ((c_x, c_y, c_z), (l_x, l_y, l_z))
+    return Selection([SubSelectionBox(min, max)]), (min, (width, width, width))
 
 def strict_sigmoid(input, clamp):
     #returns -1 if input < -clamp
