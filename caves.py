@@ -13,6 +13,7 @@ import math
 
 def cave_section(center, width):
     #Right now, just a cube
+    #We also return information about the shape, to be used to accelerate edge detection.
     c_x = center[0]
     c_y = center[1]
     c_z = center[2]
@@ -21,7 +22,8 @@ def cave_section(center, width):
     l_z = c_z-int((width/2))
     min = (l_x, l_y, l_z)
     max = (l_x+width, l_y+width, l_z+width)
-    return Selection([SubSelectionBox(min, max)])
+
+    return Selection([SubSelectionBox(min, max)]), ((c_x, c_y, c_z), (l_x, l_y, l_z))
 
 def strict_sigmoid(input, clamp):
     #returns -1 if input < -clamp
@@ -60,6 +62,8 @@ def add_vectors(input1, input2):
     return (input1[0]+input2[0], input1[1]+input2[1], input1[2]+input2[2])
 
 def make_cave(world, region, start, iterations, min_width, max_width, block):
+    #Make a single cave
+    #Also return information about the shape of the cave.
     for i in region.subboxes:
         MIN_X = i.min_x
         MIN_Y = i.min_y
@@ -67,6 +71,8 @@ def make_cave(world, region, start, iterations, min_width, max_width, block):
         MAX_X = i.max_x
         MAX_Y = i.max_y
         MAX_Z = i.max_z
+
+    cave_shapes = []
 
     position = start
     vector = (0, 0, 0)
@@ -86,7 +92,8 @@ def make_cave(world, region, start, iterations, min_width, max_width, block):
         vector = shift_vector(vector, mod)
         position = add_vectors(position, vector)
 
-        section = cave_section(position, width)
+        section, shape = cave_section(position, width)
+        cave_shapes.append(shape)
         stop = False
         for i in section.subboxes:
             if i.min_x < MIN_X or i.min_y < 0 or i.min_z < MIN_Z:
@@ -100,6 +107,7 @@ def make_cave(world, region, start, iterations, min_width, max_width, block):
         fill.fill(world, 0, section, {'fill_block': block})
         #print(F"I: {i} POS: {position} VEC: {vector} WIDTH: {width} MOD: {mod} PX: {px} PY: {py} PZ: {pz}")
     #print("END OF ITERATION")
+    return cave_shapes
 
 def clamp(number, low, high):
     if number < low:
@@ -127,7 +135,8 @@ def populate(world, region, block, fill_cube_size = 32, min_width = 2, max_width
         MAX_X = i.max_x
         MAX_Y = i.max_y
         MAX_Z = i.max_z
-
+    
+    cave_shapes = []
     FILL_CUBE_SIZE = fill_cube_size
     for x_i in range(int(math.ceil((MAX_X-MIN_X)/FILL_CUBE_SIZE))):
         x_lo = clamp(MIN_X+x_i*FILL_CUBE_SIZE, MIN_X, MAX_X)
@@ -143,4 +152,6 @@ def populate(world, region, block, fill_cube_size = 32, min_width = 2, max_width
                 min_width_specific = random.randrange(min_width,max_width)
                 max_width_specific = random.randrange(min_width_specific, max_width)
                 #print(f"({x_i}, {y_i}, {z_i}) MAKING A CAVE AT {start}. WIDTH: {min_width_specific}-{max_width_specific}. MAX_LENGTH: {iterations}")
-                make_cave(world,region,start,iterations, min_width_specific, max_width_specific, block)
+                shapes = make_cave(world,region,start,iterations, min_width_specific, max_width_specific, block)
+                cave_shapes+=shapes
+    return cave_shapes

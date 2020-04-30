@@ -1,5 +1,5 @@
 from caves import populate
-from edges import get_edges, is_ceiling, is_floor, is_wall, get_single_block
+from edges import get_edges, get_edges_fast, is_ceiling, is_floor, is_wall, get_single_block
 from util import place_single_block, line_y, clamp, get_positions_in_sub_box, map, get_block_wrapper
 from spawners import *
 from amulet.api.world import *
@@ -53,7 +53,8 @@ def parser_init():
     
     cave_deco_general = parser.add_argument_group("CAVE DECORATION - GENERAL")
     cave_deco_general.add_argument("--skip_cave_deco", action='store_true', help="Skip cave decoration. Good for if you happen to be pressed for time!")
-    
+    cave_deco_general.add_argument("--cave_deco_fast", action="store_true")
+
     glowstone_clusters = parser.add_argument_group("CAVE DECORATION - GLOWSTONE CLUSTERS", "Glowstone stalagtites that help light up your world!")
     glowstone_clusters.add_argument("--glowstone_clusters", type=bool, default=True, help="Whether glowstone clusters spawn")
     glowstone_clusters.add_argument("--glowstone_cluster_spawn_chance", type=float, default=0.05, help="Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.")
@@ -330,7 +331,6 @@ def handle_water_pools(world, x, y, z, options, returnBool = False):
     if returnBool:
         return False
         
-
 #Misc World Gen
 def handle_water_border(world, x, y, z, options):
     not_ceiling = not is_ceiling(world, x, y, z)
@@ -534,8 +534,10 @@ def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance, o
     create_bush(world, x, y+1, z, log, leaf, current_distance+1, maximum_distance, options)
     create_bush(world, x, y, z-1, log, leaf, current_distance+1, maximum_distance, options)
     create_bush(world, x, y, z+1, log, leaf, current_distance+1, maximum_distance, options)
+    
 
 if __name__ == "__main__":
+
     log = logging.getLogger("pymctranslate")
     log.setLevel(logging.ERROR)
 
@@ -577,28 +579,34 @@ if __name__ == "__main__":
             place_ore(world, x, y, z, options)
         print(f"DONE in {time.time()-start}s")
 
+    cube_set = []
     if not options.skip_caves:
         start = time.time()
         print("CAVIFICATION...")
-        populate(world, target_area, air, fill_cube_size = options.cave_fill_cube, iterations = options.cave_length, min_width = options.cave_min_size, max_width = options.cave_max_size)
+        cube_set = populate(world, target_area, air, fill_cube_size = options.cave_fill_cube, iterations = options.cave_length, min_width = options.cave_min_size, max_width = options.cave_max_size)
         print(f"DONE in {time.time()-start}s")
 
     if not options.skip_cave_deco:
         start = time.time()
         print("DECORATING CAVES...")
-        for x, y, z in get_edges(world, subbox):
-            if options.glowstone_clusters:
-                handle_glowstone_clusters(world, x, y, z, options)
-            if options.lava_pools:
-                handle_lava_pools(world, x, y, z, options)
-            if options.mob_spawners:
-                handle_mob_spawners(world, x, y, z, options)
-            if options.bushes:
-                handle_bushes(world, x, y, z, options)
-            if options.biomes:
-                handle_biomes(world, x, y, z, options)
-            if options.water_pools:
-                handle_water_pools(world, x, y, z, options)
+        if options.cave_deco_fast:
+            for x, y, z in get_edges_fast(world, cube_set, min, max):
+                place_single_block(world, diamond_block, x, y, z)
+        else:
+            for x, y, z in get_edges(world, subbox):
+                place_single_block(world, diamond_block, x, y, z)
+                # if options.glowstone_clusters:
+                #     handle_glowstone_clusters(world, x, y, z, options)
+                # if options.lava_pools:
+                #     handle_lava_pools(world, x, y, z, options)
+                # if options.mob_spawners:
+                #     handle_mob_spawners(world, x, y, z, options)
+                # if options.bushes:
+                #     handle_bushes(world, x, y, z, options)
+                # if options.biomes:
+                #     handle_biomes(world, x, y, z, options)
+                # if options.water_pools:
+                #     handle_water_pools(world, x, y, z, options)
 
         print(f"DONE in {time.time()-start}s.")
     
