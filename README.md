@@ -6,9 +6,7 @@ This is also, to the very best of my knowledge, the first project to use the Amu
 
 ## Pictures
 
-![Cave 1](https://imgur.com/ZmI0x9N)
-
-![Cave 2](https://imgur.com/2NSOSV2)
+![Cave 1](media/2020-04-29_12.34.31.png)
 
 [Full Album](https://imgur.com/a/o8WgLtD)
 
@@ -28,7 +26,7 @@ Then, run the following command:
 
 ### Where can I find example saves, if I don't want to run DwarfCraft?
 
-Example saves can be found in releases.
+Example saves can be found in [releases](https://github.com/architectdrone/DwarfCraft/releases).
 
 ### What if I want to run DwarfCraft, but I don't want to download all that stuff?
 
