@@ -118,7 +118,7 @@ def get_edges_of_cube(cube):
             yield (x, min_y, z)
             yield (x, max_y, z)
 
-    print("CORNERS")
+    #print("CORNERS")
     #8 Corners
     yield (min_x, min_y, min_z)
     yield (min_x, min_y, max_z)
@@ -129,7 +129,7 @@ def get_edges_of_cube(cube):
     yield (max_x, max_y, min_z)
     yield (max_x, max_y, max_z)
 
-    print("EDGES")
+    #print("EDGES")
     #Edges
     for o_x in range(edge_size[0]-2):
         x = min_x+o_x+1
@@ -154,20 +154,19 @@ def get_edges_of_cube(cube):
 
 def get_edges_of_cube_set(cube_set):
     for cube in cube_set:
-        print(f"CUBE:  {cube}")
-        yield get_edges_of_cube(cube)
-
+        for x, y, z in get_edges_of_cube(cube):
+            yield x, y, z
+        
 def get_edges_fast(world, cube_set, min, max, ambient_block = air):
     all_edges = set()
 
     total_edges = 0
     true_edges = 0
 
-    for edges in get_edges_of_cube_set(cube_set):
-        for x, y, z in edges:
-            print(f"\t{x, y, z}")
-            all_edges.add((x, y, z))
-            total_edges+=1
+    for x, y, z in get_edges_of_cube_set(cube_set):
+        #print(f"\t{x, y, z}")
+        all_edges.add((x, y, z))
+        total_edges+=1
     true_edges = len(all_edges)
 
     print(f"Returned edges: {total_edges} True number of edges: {true_edges}")
@@ -175,13 +174,12 @@ def get_edges_fast(world, cube_set, min, max, ambient_block = air):
     outside_count = 0
 
     for x, y, z in all_edges:
-        # if x < min[0] or x > max[0] or y < min[1] or y > max[1] or z < min[2] or z > max[2]:
-        #     outside_count+=1
-        #     continue
+        if x < min[0] or x > max[0] or y < min[1] or y > max[1] or z < min[2] or z > max[2]:
+            outside_count+=1
+            continue
         try:
             edge = is_edge(world, x, y, z, ambient_block)
         except ChunkDoesNotExist:
-            print("AYO")
             c_x = math.floor(x/16)
             c_z = math.floor(z/16)
             chunk = Chunk(c_x, c_z)

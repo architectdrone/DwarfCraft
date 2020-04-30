@@ -53,7 +53,6 @@ def parser_init():
     
     cave_deco_general = parser.add_argument_group("CAVE DECORATION - GENERAL")
     cave_deco_general.add_argument("--skip_cave_deco", action='store_true', help="Skip cave decoration. Good for if you happen to be pressed for time!")
-    cave_deco_general.add_argument("--cave_deco_fast", action="store_true")
 
     glowstone_clusters = parser.add_argument_group("CAVE DECORATION - GLOWSTONE CLUSTERS", "Glowstone stalagtites that help light up your world!")
     glowstone_clusters.add_argument("--glowstone_clusters", type=bool, default=True, help="Whether glowstone clusters spawn")
@@ -589,24 +588,20 @@ if __name__ == "__main__":
     if not options.skip_cave_deco:
         start = time.time()
         print("DECORATING CAVES...")
-        if options.cave_deco_fast:
-            for x, y, z in get_edges_fast(world, cube_set, min, max):
-                place_single_block(world, diamond_block, x, y, z)
-        else:
-            for x, y, z in get_edges(world, subbox):
-                place_single_block(world, diamond_block, x, y, z)
-                # if options.glowstone_clusters:
-                #     handle_glowstone_clusters(world, x, y, z, options)
-                # if options.lava_pools:
-                #     handle_lava_pools(world, x, y, z, options)
-                # if options.mob_spawners:
-                #     handle_mob_spawners(world, x, y, z, options)
-                # if options.bushes:
-                #     handle_bushes(world, x, y, z, options)
-                # if options.biomes:
-                #     handle_biomes(world, x, y, z, options)
-                # if options.water_pools:
-                #     handle_water_pools(world, x, y, z, options)
+        for x, y, z in get_edges_fast(world, cube_set, min, max):
+            if options.glowstone_clusters:
+                handle_glowstone_clusters(world, x, y, z, options)
+            if options.lava_pools:
+                handle_lava_pools(world, x, y, z, options)
+            if options.mob_spawners:
+                handle_mob_spawners(world, x, y, z, options)
+            if options.bushes:
+                handle_bushes(world, x, y, z, options)
+            if options.biomes:
+                handle_biomes(world, x, y, z, options)
+            if options.water_pools:
+                handle_water_pools(world, x, y, z, options)
+                
 
         print(f"DONE in {time.time()-start}s.")
     
