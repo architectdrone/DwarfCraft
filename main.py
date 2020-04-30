@@ -25,6 +25,7 @@ SEED = random.randint(0, 1000)
 #Ore difficulties. Higher numbers mean they tend to spawn in the deeper parts of the map.
 COAL_DIFF = 0.1
 IRON_DIFF = 0.3
+REDSTONE_DIFF = 0.5
 GOLD_DIFF = 0.6
 EMERALD_DIFF = 0.7
 DIAMOND_DIFF = 0.9
@@ -153,6 +154,7 @@ iron_ore = blockstate_to_block("universal_minecraft:iron_ore")
 gold_ore = blockstate_to_block("universal_minecraft:gold_ore")
 emerald_ore = blockstate_to_block("universal_minecraft:emerald_ore")
 diamond_ore = blockstate_to_block("universal_minecraft:diamond_ore")
+redstone_ore = blockstate_to_block("universal_minecraft:redstone_ore")
 silverfish_egg = blockstate_to_block("infested_stone")
 diamond_block = blockstate_to_block("diamond_block")
 oak_leaves = blockstate_to_block("oak_leaves")
@@ -175,6 +177,7 @@ ores = [
     (gold_ore, GOLD_DIFF),
     (emerald_ore, EMERALD_DIFF),
     (diamond_ore, DIAMOND_DIFF),
+    (redstone_ore, REDSTONE_DIFF),
     (silverfish_egg, SILVERFISH_DIFF)
 ]
 
