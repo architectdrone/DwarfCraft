@@ -55,11 +55,11 @@ def parser_init():
     cave_deco_general = parser.add_argument_group("CAVE DECORATION - GENERAL")
     cave_deco_general.add_argument("--skip_cave_deco", action='store_true', help="Skip cave decoration. Good for if you happen to be pressed for time!")
 
-    glowstone_clusters = parser.add_argument_group("CAVE DECORATION - GLOWSTONE CLUSTERS", "Glowstone stalagtites that help light up your world!")
+    glowstone_clusters = parser.add_argument_group("CAVE DECORATION - GLOWSTONE CLUSTERS", "Glowstone stalactites that help light up your world!")
     glowstone_clusters.add_argument("--glowstone_clusters", type=bool, default=True, help="Whether glowstone clusters spawn")
     glowstone_clusters.add_argument("--glowstone_cluster_spawn_chance", type=float, default=0.05, help="Chance of a glowstone cluster spawning. Approximately the percent of ceilings with glostone clusters on them.")
-    glowstone_clusters.add_argument("--glowstone_cluster_compression", type=float, default=0.25, help="Percent of ceilings in a glowstone cluster that have a stalagtite on them.")
-    glowstone_clusters.add_argument("--glowstone_cluster_max_length", type=int, default=5, help="Maximum length of a stalagtite.")
+    glowstone_clusters.add_argument("--glowstone_cluster_compression", type=float, default=0.25, help="Percent of ceilings in a glowstone cluster that have a stalactite on them.")
+    glowstone_clusters.add_argument("--glowstone_cluster_max_length", type=int, default=5, help="Maximum length of a stalactite.")
     
     lava_pools = parser.add_argument_group("CAVE DECORATION - LAVA POOLS", "Lava pools spawn near the bottom of the world. There are two generation methods: A filling method, and a floor-replace method.")
     lava_pools.add_argument("--lava_pools", type=bool, default=True, help="Whether Lava Pools Spawn")
@@ -267,7 +267,7 @@ def handle_lava_pools(world, x, y, z, options):
     return 0
 
 def handle_glowstone_clusters(world, x, y, z, options):
-    handle_stalagtite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length)
+    handle_stalactite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length)
 
 def handle_mob_spawners(world, x, y, z, options):
     if random.random() < options.mob_spawner_spawn_chance and is_floor(world, x, y, z) and y+1 < options.size and get_block_wrapper(world, x, y, z) == stone:
@@ -345,9 +345,9 @@ def handle_water_border(world, x, y, z, options):
             for i in range(height):
                 place_single_block(world, sugarcane, x, y+i+1, z)
             
-def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression, max_length, seed = SEED):
+def handle_stalactite_clusters(world, x, y, z, block, spawn_chance, compression, max_length, seed = SEED):
     '''
-    Takes care of placing stalagtite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
+    Takes care of placing stalactite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
     '''
     global air
     to_return = 0
@@ -356,7 +356,7 @@ def handle_stalagtite_clusters(world, x, y, z, block, spawn_chance, compression,
             length = random.randint(1, max_length)
             to_return = 1
             if random.random() < compression:
-                grow_stalagtite(world, x, y-1, z, block, length)
+                grow_stalactite(world, x, y-1, z, block, length)
     return to_return
 
 def get_proper_ore(y, options):
@@ -441,17 +441,17 @@ def get_biome(x, y, z, seed = SEED*3):
     '''
     return perlin_probability_selection(1, x, y, z, seed = seed)
 
-def grow_stalagtite(world, x, y, z, block, height):
+def grow_stalactite(world, x, y, z, block, height):
     '''
-    Places a stalagtite. Note that this implementation is fast, but not perfect. 
-    A negative consequence is that stalagtites may cut through the floor of a cave into an adjacent cave.
+    Places a stalactite. Note that this implementation is fast, but not perfect. 
+    A negative consequence is that stalactites may cut through the floor of a cave into an adjacent cave.
     The previous (perfect) implementation took about 5x longer.
     '''
     global air
     if (height < 0):
         return
     if ((y-height)<0) or world.get_block(x, y-height, z) != air:
-        grow_stalagtite(world, x, y, z, block, int(math.floor(height/2))) #Try again with a shorter height.
+        grow_stalactite(world, x, y, z, block, int(math.floor(height/2))) #Try again with a shorter height.
     else:
         fill.fill(world, 0, line_y(x, y, z, height, False), {'fill_block':block})
 
