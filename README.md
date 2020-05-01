@@ -14,15 +14,12 @@ This is also, to the very best of my knowledge, the first project to use the Amu
 
 ### How do I run DwarfCraft?
 
-Currently, the only way to run DwarfCraft is from source. Before running DwarfCraft, you need to have python 3.6+ installed. You also need the following python modules:
+Currently, the only way to run DwarfCraft is from source. Pipenv makes this easy as py.
 
-- Amulet Core
-- Amulet NBT
-- PyMCTranslate
-
-Then, run the following command:
-
-`python main.py <path to world> <size>`
+1. Install Python 3.8+
+2. Install Pipenv (`pip install pipenv`)
+3. Navigate to the directory, and run `pipenv install`. This might take a while...
+4. Run `pipenv run python main.py <path to world> <size>` to run DwarfCraft from within the pipenv shell.
 
 ### Where can I find example saves, if I don't want to run DwarfCraft?
 
@@ -30,7 +27,7 @@ Example saves can be found in [releases](https://github.com/architectdrone/Dwarf
 
 ### What if I want to run DwarfCraft, but I don't want to download all that stuff?
 
-I am working on creating an exe for DwarfCraft. As it turns out, this is fairly difficult.
+I am working on creating an exe for DwarfCraft. As it turns out, this is fairly difficult, due to some of the dependencies needed.
 
 ### I am familiar with the Amulet API... why did you do <dumb thing\> when you could do <smart thing\>?
 
