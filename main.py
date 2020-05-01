@@ -9,7 +9,8 @@ from amulet.operations import fill
 from amulet import world_interface
 from amulet.api.errors import ChunkDoesNotExist
 from amulet.api.block_entity import BlockEntity
-from noise import pnoise3
+from noise import pnoise3, snoise4
+from opensimplex import OpenSimplex
 from amulet_nbt import *
 import math
 import random
@@ -20,7 +21,22 @@ import logging
 VERSION = 1
 
 SQUARE_MAX = 64
-SEED = random.randint(0, 1000)
+SEED_MAX = 10000000
+SEED = random.randint(0, SEED_MAX)
+
+random.seed(SEED)
+
+number_of_features = 7
+feature_step = (1/7)*SEED_MAX
+seed_set = { #These make sure that seeds for each feature is unique. Otherwise, we get awkward "feature-veins"
+    'glowstone': OpenSimplex(seed=random.randint(0, SEED_MAX)),
+    'lava': OpenSimplex(seed=random.randint(0, SEED_MAX)),
+    'spawner': OpenSimplex(seed=random.randint(0, SEED_MAX)),
+    'bush': OpenSimplex(seed=random.randint(0, SEED_MAX)),
+    'biome': OpenSimplex(seed=random.randint(0,SEED_MAX)),
+    'water': OpenSimplex(seed=random.randint(0, SEED_MAX)),
+    'biome_block': OpenSimplex(seed=random.randint(0, SEED_MAX))
+}
 
 #Ore difficulties. Higher numbers mean they tend to spawn in the deeper parts of the map.
 COAL_DIFF = 0.1
@@ -205,44 +221,43 @@ def probability_to_distance(probability):
     '''
     Converts a probability to a distance from 0.5 such that the probability that a value will land in the distance is roughly the input probability.
     '''
-    if probability < 0.75:
-        return 0.177*probability-0.000254
-    else:
-        return 0.0127*math.exp(3.39*probability)
+    return 0.0301*math.exp(2.6*probability)
 
-def perlin_distance(x, y, z, seed = SEED):
+def perlin_distance(x, y, z, seed):
     '''
     Returns distance from 0.5 at the specified coordinates.
     '''
     return abs(perlin(x, y, z, octaves=1, base = seed)-0.5)
 
-def perlin_probability(percent_chance, x, y, z, seed = SEED):
+def perlin_probability(percent_chance, x, y, z, seed):
     '''
     See README for a description of what this function does, and why it is needed.
     '''
-    distance = perlin_distance(x, y, z, seed = SEED)
+    distance = perlin_distance(x, y, z, seed)
     success_distance = clamp(probability_to_distance(percent_chance), 0, 1)
     return distance < success_distance
 
-def perlin_probability_selection(max, x, y, z, seed = SEED):
+def perlin_probability_selection(max, x, y, z, seed):
     '''
     Returns a number between 0 and max.
     '''
 
     for i in range(max+1):
         threshold = (i+1)/(max+1)
-        if perlin_probability(threshold, x, y, z, seed = seed):
+        if perlin_probability(threshold, x, y, z, seed):
             return i
     return max
 
-def perlin(x, y, z, octaves = 1, base = 1, size=SQUARE_MAX):
+def perlin(x, y, z, octaves = 1, base = None, size=SQUARE_MAX):
     '''
     Returns a normalized (0 - 1) value. The 0.2746 term pushes the average to around 0.5.
     '''
-    return clamp(((pnoise3(x/size, y/size, z/size, octaves = octaves, base = base)+1)/2)+0.0535, 0, 0.999)
+    gen = base
+    result = clamp(((gen.noise3d(x/size, y/size, z/size)+1)/2)+0.03, 0, 0.999)
+    return result
 
-def perlin_choice(x, y, z, list):
-    index = perlin_probability_selection(len(list)-1, x, y, z)
+def perlin_choice(x, y, z, list, seed):
+    index = perlin_probability_selection(len(list)-1, x, y, z, seed)
     return list[index]
 
 def choose_random_weighted(weight, spread, list):
@@ -254,7 +269,7 @@ def choose_random_weighted(weight, spread, list):
 def handle_lava_pools(world, x, y, z, options):
     floor = is_floor(world, x, y, z)
     scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**options.lava_pool_punishment_factor #We want to punish the spawn chance at high altitudes. This equation does exactly that.
-    spawn = perlin_probability(scaling_factor*options.lava_pool_spawn_chance, x, y, z, seed = SEED*5)
+    spawn = perlin_probability(scaling_factor*options.lava_pool_spawn_chance, x, y, z, seed_set['lava'])
 
     if floor and spawn:
         if options.lava_pool_fill:
@@ -267,7 +282,7 @@ def handle_lava_pools(world, x, y, z, options):
     return 0
 
 def handle_glowstone_clusters(world, x, y, z, options):
-    handle_stalactite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length)
+    handle_stalactite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length, seed_set['glowstone'])
 
 def handle_mob_spawners(world, x, y, z, options):
     if random.random() < options.mob_spawner_spawn_chance and is_floor(world, x, y, z) and y+1 < options.size and get_block_wrapper(world, x, y, z) == stone:
@@ -275,7 +290,7 @@ def handle_mob_spawners(world, x, y, z, options):
         spawner(world, x, y+1, z, the_mob)
 
 def handle_bushes(world, x, y, z, options):
-    is_bush_cluster = perlin_probability(options.bush_spawn_chance, x, y, z, seed = SEED*3)
+    is_bush_cluster = perlin_probability(options.bush_spawn_chance, x, y, z, seed_set['bush'])
     is_bush_spawn_location = random.random() < options.bush_compression
 
     if is_bush_cluster and is_bush_spawn_location and get_block_wrapper(world, x, y, z) == stone:
@@ -287,17 +302,17 @@ def handle_bushes(world, x, y, z, options):
 def handle_biomes(world, x, y, z, options):
     if get_block_wrapper(world, x, y, z) == stone:
         if is_floor(world, x, y, z):
-            if get_biome(x, y, z) == 0:
-                place_single_block(world, perlin_choice(x, y, z, stone_biome_floor_blocks), x, y, z)
+            if get_biome(x, y, z, seed_set['biome']) == 0:
+                place_single_block(world, perlin_choice(x, y, z, stone_biome_floor_blocks, seed_set['biome_block']), x, y, z)
             else:
-                place_single_block(world, perlin_choice(x, y, z, organic_biome_floor_blocks), x, y, z)
+                place_single_block(world, perlin_choice(x, y, z, organic_biome_floor_blocks, seed_set['biome_block']), x, y, z)
                 if random.random() < options.biome_flower_spawn_chance:
                     place_single_block(world, random.choice(flowers), x, y+1, z)
                 elif random.random() < options.biome_grass_spawn_chance:
                     place_single_block(world, grass, x, y+1, z)
             
         else:
-            if get_biome(x, y, z) == 1:
+            if get_biome(x, y, z, seed_set['biome']) == 1:
                 place_single_block(world, dirt, x, y, z)
 
 def handle_water_pools(world, x, y, z, options, returnBool = False):
@@ -306,7 +321,7 @@ def handle_water_pools(world, x, y, z, options, returnBool = False):
     '''
     valid_spawn_location = is_floor(world, x, y, z) and not is_wall(world, x, y, z) and not is_ceiling(world, x, y, z)
     valid_spawn_block = get_block_wrapper(world, x, y, z) in biome_floor_blocks+[sand]
-    water_area = perlin_probability(options.water_pool_spawn_chance, x, y, z)
+    water_area = perlin_probability(options.water_pool_spawn_chance, x, y, z, seed_set['water'])
 
     if valid_spawn_location and water_area and valid_spawn_block:
         if returnBool:
@@ -345,14 +360,14 @@ def handle_water_border(world, x, y, z, options):
             for i in range(height):
                 place_single_block(world, sugarcane, x, y+i+1, z)
             
-def handle_stalactite_clusters(world, x, y, z, block, spawn_chance, compression, max_length, seed = SEED):
+def handle_stalactite_clusters(world, x, y, z, block, spawn_chance, compression, max_length, seed):
     '''
     Takes care of placing stalactite clusters. Assumes that (x, y, z) is an edge (but not neccesarilya ceiling)
     '''
     global air
     to_return = 0
     if is_ceiling(world, x, y, z, air):
-        if perlin_probability(spawn_chance, x, y, z, seed = seed):
+        if perlin_probability(spawn_chance, x, y, z, seed):
             length = random.randint(1, max_length)
             to_return = 1
             if random.random() < compression:
@@ -433,13 +448,13 @@ def get_mob(y):
     #We are done.
     return mob
 
-def get_biome(x, y, z, seed = SEED*3):
+def get_biome(x, y, z, seed):
     '''
     Returns:
     0 for stone
     1 for organic
     '''
-    return perlin_probability_selection(1, x, y, z, seed = seed)
+    return perlin_probability_selection(1, x, y, z, seed)
 
 def grow_stalactite(world, x, y, z, block, height):
     '''
@@ -543,11 +558,11 @@ if __name__ == "__main__":
     log = logging.getLogger("pymctranslate")
     log.setLevel(logging.ERROR)
 
-    print(f"DWARF CRAFT - VERSION {VERSION}")
-    print('"Survival Minecraft for people that hate the Sun!"')
-
     options = parser_init()
     program_start = time.time()
+
+    print(f"DWARF CRAFT - VERSION {VERSION}")
+    print('"Survival Minecraft for people that hate the Sun!"')
 
     min = (0, 0, 0)
     max = (options.size, options.size, options.size)
