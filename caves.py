@@ -7,7 +7,6 @@ from amulet.api.selection import *
 from amulet.api.block import *
 from amulet.operations import fill
 from amulet.api.world import *
-from noise import pnoise3, pnoise1
 import random
 import math
 

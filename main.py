@@ -9,7 +9,6 @@ from amulet.operations import fill
 from amulet import world_interface
 from amulet.api.errors import ChunkDoesNotExist
 from amulet.api.block_entity import BlockEntity
-from noise import pnoise3, snoise4
 from opensimplex import OpenSimplex
 from amulet_nbt import *
 import math
