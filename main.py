@@ -252,7 +252,7 @@ def perlin(x, y, z, octaves = 1, base = None, size=SQUARE_MAX):
     Returns a normalized (0 - 1) value. The 0.2746 term pushes the average to around 0.5.
     '''
     gen = base
-    result = clamp(((gen.noise3d(x/size, y/size, z/size)+1)/2)+0.03, 0, 0.999)
+    result = clamp(((gen.noise3d(x/size, y/(min(size, 255)), z/size)+1)/2)+0.03, 0, 0.999)
     return result
 
 def perlin_choice(x, y, z, list, seed):
@@ -267,7 +267,7 @@ def choose_random_weighted(weight, spread, list):
 #Cave Decoration
 def handle_lava_pools(world, x, y, z, options):
     floor = is_floor(world, x, y, z)
-    scaling_factor = ((2/(map(y,0,SQUARE_MAX,0,1)+1))-1)**options.lava_pool_punishment_factor #We want to punish the spawn chance at high altitudes. This equation does exactly that.
+    scaling_factor = ((2/(map(y,0,min(SQUARE_MAX, 255),0,1)+1))-1)**options.lava_pool_punishment_factor #We want to punish the spawn chance at high altitudes. This equation does exactly that.
     spawn = perlin_probability(scaling_factor*options.lava_pool_spawn_chance, x, y, z, seed_set['lava'])
 
     if floor and spawn:
@@ -284,7 +284,7 @@ def handle_glowstone_clusters(world, x, y, z, options):
     handle_stalactite_clusters(world, x, y, z, glowstone, options.glowstone_cluster_spawn_chance, options.glowstone_cluster_compression, options.glowstone_cluster_max_length, seed_set['glowstone'])
 
 def handle_mob_spawners(world, x, y, z, options):
-    if random.random() < options.mob_spawner_spawn_chance and is_floor(world, x, y, z) and y+1 < options.size and get_block_wrapper(world, x, y, z) == stone:
+    if random.random() < options.mob_spawner_spawn_chance and is_floor(world, x, y, z) and y+1 < min(options.size, 255) and get_block_wrapper(world, x, y, z) == stone:
         the_mob = get_mob(y)
         spawner(world, x, y+1, z, the_mob)
 
@@ -381,7 +381,8 @@ def get_proper_ore(y, options):
     '''
     global ores, SQUARE_MAX
     ore, diff = random.choice(ores)
-    ideal_diff = 1-map(y, 0, SQUARE_MAX, 0, 1)
+    max_y = min(SQUARE_MAX, 255)
+    ideal_diff = 1-map(y, 0, max_y, 0, 1)
     if ideal_diff > diff:
         size = options.ore_pocket_size*((1+abs(ideal_diff-diff))**2)
     else:
@@ -400,7 +401,7 @@ def place_ore(world, x, y, z, options):
     else:
         for i in range(size):
             place_x = clamp(x+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
-            place_y = clamp(y+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
+            place_y = clamp(y+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, min(SQUARE_MAX, 255))
             place_z = clamp(z+random.randrange(-1*int((i)/2), 1+int((i)/2)), 0, SQUARE_MAX)
             place_single_block(world, ore, place_x, place_y, place_z)
 
@@ -409,7 +410,7 @@ def get_mob(y):
     Get proper mob, depending on height.
     '''
 
-    normalized_y = 1-map(y, 0, SQUARE_MAX, 0, 1)
+    normalized_y = 1-map(y, 0, min(SQUARE_MAX, 255), 0, 1)
 
     #First, we choose the mob.
     normal_hostile_mobs = ['minecraft:witch', 'minecraft:skeleton', 'minecraft:slime', 'minecraft:creeper', 'minecraft:zombie', 'minecraft:enderman', 'minecraft:spider']
@@ -490,7 +491,7 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
         dn_empty = False
         while True:
             try:
-                if x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > SQUARE_MAX or z < 0 or (get_block_wrapper(world, x, y, z) != air and not first):
+                if x > SQUARE_MAX or x < 0 or y > SQUARE_MAX or y < 0 or z > min(SQUARE_MAX, 255) or z < 0 or (get_block_wrapper(world, x, y, z) != air and not first):
                     break
             except ChunkDoesNotExist:
                 print(f"{x, y, z} caused an EPIC FAIL!")
@@ -527,7 +528,7 @@ def scanline_pool_fill(world, sx, sy, sz, block, left_to_right = None):
 def create_bush(world, x, y, z, log, leaf, current_distance, maximum_distance, options):
     if (get_block_wrapper(world, x, y, z) != air and current_distance != 0) or current_distance >= maximum_distance:
         return
-    if (x<0) or (x>options.size) or (y<0) or (y>options.size) or (z<0) or (z>options.size):
+    if (x<0) or (x>options.size) or (y<0) or (y>min(options.size, 255)) or (z<0) or (z>options.size):
         return
 
     normalized_distance = map(current_distance, 0, maximum_distance, 0, 1)
@@ -563,10 +564,10 @@ if __name__ == "__main__":
     print(f"DWARF CRAFT - VERSION {VERSION}")
     print('"Survival Minecraft for people that hate the Sun!"')
 
-    min = (0, 0, 0)
-    max = (options.size, options.size, options.size)
+    min_point = (0, 0, 0)
+    max_point = (options.size, min(options.size, 255), options.size)
 
-    subbox = SubSelectionBox(min, max)
+    subbox = SubSelectionBox(min_point, max_point)
     target_area = Selection([subbox])
 
     start = time.time()
@@ -576,7 +577,7 @@ if __name__ == "__main__":
 
     if options.full_reset:
         big_max = (SQUARE_MAX, 255, SQUARE_MAX)
-        big_target_area = Selection([SubSelectionBox(min, big_max)])
+        big_target_area = Selection([SubSelectionBox(min_point, big_max)])
         fill.fill(world, 0, big_target_area, {'fill_block': air})
 
     start = time.time()
@@ -587,10 +588,10 @@ if __name__ == "__main__":
     if not options.skip_ores:
         start = time.time()
         print("OREIFICATION...")
-        ore_pockets = int(((options.size**3)/(16**3))*options.ore_pockets_per_chunk)
+        ore_pockets = int((((options.size**2)*min(options.size, 255))/(16**3))*options.ore_pockets_per_chunk)
         for i in range(ore_pockets):
             x = random.randrange(0, options.size)
-            y = random.randrange(0, options.size)
+            y = random.randrange(0, min(options.size, 255))
             z = random.randrange(0, options.size)
             place_ore(world, x, y, z, options)
         print(f"DONE in {time.time()-start}s")
@@ -605,7 +606,7 @@ if __name__ == "__main__":
     if not options.skip_cave_deco:
         start = time.time()
         print("DECORATING CAVES...")
-        for x, y, z in get_edges_fast(world, cube_set, min, max):
+        for x, y, z in get_edges_fast(world, cube_set, min_point, max_point):
             if options.glowstone_clusters:
                 handle_glowstone_clusters(world, x, y, z, options)
             if options.lava_pools:
