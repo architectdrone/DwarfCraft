@@ -1,6 +1,7 @@
 # DwarfCraft
 
-** Alas, DwarfCraft no longer works. See the writeup [here|https://owenmellema.com/projects:dwarfcraft]**
+**Alas, DwarfCraft no longer works. See the writeup [here|https://owenmellema.com/projects:dwarfcraft]**
+
 DwarfCraft is a map generator for Minecraft. It aims to make living underground more interesting. You've never seen caves like these before!
 
 This is also, to the very best of my knowledge, the first project to use the Amulet API outside of the Amulet Editor.
